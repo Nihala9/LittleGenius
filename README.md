@@ -1,5 +1,16 @@
-LittleGenius
+# little_genius
 
-In today’s digital era, children are increasingly exposed to mobile devices at an early age, often spending excessive time watching short videos, reels, and other non-interactive content. While technology has become an integral part of daily life, unstructured and passive screen usage can negatively impact children’s attention span, creativity, and overall cognitive development. Despite the availability of educational applications, many existing platforms lack personalization, engagement, and age-appropriate learning guidance.
+A new Flutter project.
 
-LittleGenius is an AI-powered, gamified learning and cognitive development application designed to transform children’s screen time into a meaningful and productive learning experience. The system focuses on interactive learning through games, puzzles, storytelling, and activity-based challenges that promote memory development, logical thinking, and foundational academic skills. By incorporating AI-driven personalization, LittleGenius adapts content difficulty, provides instant feedback, and tailors learning paths based on each child’s age and progress. The application also includes a parental monitoring feature to track learning outcomes and screen usage, ensuring balanced and effective digital learning. LittleGenius aims to create a smart, engaging, and child-friendly learning environment that supports cognitive growth while making learning enjoyable.
+## Getting Started
+
+This project is a starting point for a Flutter application.
+
+A few resources to get you started if this is your first Flutter project:
+
+- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
+- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+
+For help getting started with Flutter development, view the
+[online documentation](https://docs.flutter.dev/), which offers tutorials,
+samples, guidance on mobile development, and a full API reference.

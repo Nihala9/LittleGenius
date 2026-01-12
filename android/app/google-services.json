@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "450173849734",
+    "project_id": "littlegenius-8edf9",
+    "storage_bucket": "littlegenius-8edf9.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:450173849734:android:f7ae9ea147d0f37109c107",
+        "android_client_info": {
+          "package_name": "com.example.little_genius"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBk5eqlyJ9npNB21OIiEr1g9bQGePRi5Xc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
