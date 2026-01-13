@@ -11,211 +11,193 @@ class ActivityWizard extends StatefulWidget {
 
 class _ActivityWizardState extends State<ActivityWizard> {
   int _currentStep = 0;
-  bool _isSaving = false;
+  bool _saving = false;
 
-  // STEP 1: CONCEPT & LANGUAGE
-  String? selectedConceptId;
-  String selectedLang = 'en-US';
+  // --- Requirement 1 & 2: Targeting ---
+  String? conceptId;
+  String lang = 'en-US';
+  String subject = 'Literacy';
 
-  // STEP 2: METADATA
+  // --- Requirement 3 & Metadata: Identity ---
   final titleController = TextEditingController();
-  final objectiveController = TextEditingController();
-  String selectedSubject = 'Literacy';
+  String mode = 'Visual';
+  String type = 'Game';
+  String ageGroup = '3-4';
+  String difficulty = 'Easy';
 
-  // STEP 3: AI LEARNING MODE
-  String selectedMode = 'Tracing'; // Tracing, Matching, Puzzle
-  double retryThreshold = 3;
+  // --- Requirement 4: AI Rules ---
+  double mastery = 0.9;
+  double retries = 3;
 
-  // STEP 4: GAMIFICATION
-  double starReward = 10;
+  // --- Requirement 5: Gamification ---
+  double stars = 10;
 
-  // --- FINAL PUBLISH FUNCTION ---
-  void _publishActivity() async {
-    if (selectedConceptId == null || titleController.text.isEmpty) {
+  // --- Req 6: Final Publish Logic ---
+  void _publish() async {
+    if (conceptId == null || titleController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please select a Concept and enter a Title"))
+        const SnackBar(content: Text("Missing Concept or Title! Check Step 1 & 2.")),
       );
       setState(() => _currentStep = 0);
       return;
     }
 
-    setState(() => _isSaving = true);
+    setState(() => _saving = true);
 
     try {
-      final newActivity = Activity(
-        id: '', // Firestore auto-generates
+      final act = Activity(
+        id: '', // Firestore auto-id
+        conceptId: conceptId!,
+        language: lang,
+        activityMode: mode,
         title: titleController.text,
-        objective: objectiveController.text,
-        subject: selectedSubject,
-        type: "Game", 
-        ageGroup: "3-7", // Baseline range
-        difficulty: "Easy",
-        estimatedTime: 5,
-        language: selectedLang,
+        type: type,
+        subject: subject,
+        ageGroup: ageGroup,
+        difficulty: difficulty,
+        estimatedTime: 5, // Default for now
+        masteryGoal: mastery,
+        retryLimit: retries.toInt(),
+        starReward: stars.toInt(),
+        badgeName: 'Hero',
         status: ActivityStatus.published,
         createdAt: DateTime.now(),
       );
 
-      // SAVE TO FIRESTORE (Adding 'conceptId' and 'activityMode' to the map)
-      Map<String, dynamic> data = newActivity.toMap();
-      data['conceptId'] = selectedConceptId;
-      data['activityMode'] = selectedMode;
-      data['retryThreshold'] = retryThreshold.toInt();
-      data['rewardStars'] = starReward.toInt();
-
-      await FirebaseFirestore.instance.collection('activities').add(data);
-
+      await FirebaseFirestore.instance.collection('activities').add(act.toMap());
+      
       if (mounted) {
+        Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Activity Successfully Linked to Concept!"))
+          const SnackBar(content: Text("Success! Activity is now live."), backgroundColor: Colors.green),
         );
-        Navigator.pop(context); 
       }
     } catch (e) {
-      setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Error: $e")));
+      setState(() => _saving = false);
+      debugPrint("Error: $e");
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Performance-Based Creator", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text("Authoring Wizard", style: TextStyle(fontWeight: FontWeight.bold)),
         elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.indigo,
       ),
-      body: _isSaving 
+      body: _saving 
         ? const Center(child: CircularProgressIndicator()) 
-        : Stepper(
-            type: StepperType.vertical,
-            currentStep: _currentStep,
-            onStepContinue: () {
-              if (_currentStep < 4) {
-                setState(() => _currentStep++);
-              } else {
-                _publishActivity();
-              }
-            },
-            onStepCancel: () {
-              if (_currentStep > 0) setState(() => _currentStep--);
-            },
-            controlsBuilder: (context, details) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 20),
-                child: Row(
-                  children: [
-                    ElevatedButton(
-                      onPressed: details.onStepContinue,
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo),
-                      child: Text(_currentStep == 4 ? "PUBLISH TO CLOUD" : "CONTINUE", style: const TextStyle(color: Colors.white)),
-                    ),
-                    const SizedBox(width: 10),
-                    TextButton(onPressed: details.onStepCancel, child: const Text("BACK")),
-                  ],
-                ),
-              );
-            },
-            steps: [
-              // STEP 1: TARGETING
-              Step(
-                isActive: _currentStep >= 0,
-                title: const Text("1. Concept & Language"),
-                content: Column(
-                  children: [
-                    _buildConceptDropdown(),
-                    const SizedBox(height: 10),
-                    _buildDropdown("Native Language", ['en-US', 'ml-IN', 'hi-IN', 'es-ES'], (val) => selectedLang = val!),
-                  ],
-                ),
-              ),
-              // STEP 2: METADATA
-              Step(
-                isActive: _currentStep >= 1,
-                title: const Text("2. Basic Metadata"),
-                content: Column(
-                  children: [
-                    TextField(controller: titleController, decoration: const InputDecoration(labelText: "Activity Title")),
-                    const SizedBox(height: 10),
-                    _buildDropdown("Category", ['Literacy', 'Numeracy', 'General Knowledge'], (val) => selectedSubject = val!),
-                  ],
-                ),
-              ),
-              // STEP 3: AI PERFORMANCE RULES
-              Step(
-                isActive: _currentStep >= 2,
-                title: const Text("3. AI Mode & Redirection"),
-                content: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildDropdown("Teaching Mode", ['Tracing', 'Matching', 'Puzzle', 'Audio'], (val) => selectedMode = val!),
-                    const SizedBox(height: 10),
-                    Text("Redirection Threshold: ${retryThreshold.toInt()} failures"),
-                    Slider(value: retryThreshold, min: 1, max: 5, divisions: 4, onChanged: (v) => setState(() => retryThreshold = v)),
-                  ],
-                ),
-              ),
-              // STEP 4: GAMIFICATION
-              Step(
-                isActive: _currentStep >= 3,
-                title: const Text("4. Reward Settings"),
-                content: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text("Completion Reward: ${starReward.toInt()} Stars"),
-                    Slider(value: starReward, min: 5, max: 100, divisions: 19, onChanged: (v) => setState(() => starReward = v)),
-                  ],
-                ),
-              ),
-              // STEP 5: FINAL REVIEW
-              Step(
-                isActive: _currentStep >= 4,
-                title: const Text("5. Review & Publish"),
-                content: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(15),
-                  decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.05), borderRadius: BorderRadius.circular(10)),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text("Title: ${titleController.text}", style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text("Mode: $selectedMode"),
-                      Text("Language: $selectedLang"),
-                      const Text("\nStatus: AI is ready to monitor this activity.", style: TextStyle(fontSize: 11, color: Colors.indigo)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+        : Theme(
+            data: ThemeData(colorScheme: ColorScheme.light(primary: Colors.indigo)),
+            child: Stepper(
+              type: StepperType.vertical,
+              currentStep: _currentStep,
+              onStepContinue: () => _currentStep < 4 ? setState(() => _currentStep++) : _publish(),
+              onStepCancel: () => _currentStep > 0 ? setState(() => _currentStep--) : null,
+              controlsBuilder: _buildControls,
+              steps: [
+                _buildStep("Targeting", "Map concept and language", 0, _targetingUI()),
+                _buildStep("Activity Details", "Basic identity and metadata", 1, _identityUI()),
+                _buildStep("AI Engine Rules", "Configure BKT and MAB logic", 2, _aiRulesUI()),
+                _buildStep("Engagement", "Set reward weights", 3, _rewardsUI()),
+                _buildStep("Preview", "Final validation", 4, _reviewUI()),
+              ],
+            ),
           ),
     );
   }
 
-  // Fetches Concepts from Firestore so Admin can link activities correctly
-  Widget _buildConceptDropdown() {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('concepts').snapshots(),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) return const LinearProgressIndicator();
-        var concepts = snapshot.data!.docs;
-        return DropdownButtonFormField<String>(
-          decoration: const InputDecoration(labelText: "Linked Educational Concept"),
-          items: concepts.map((c) => DropdownMenuItem(value: c.id, child: Text(c['name']))).toList(),
-          onChanged: (val) => setState(() => selectedConceptId = val),
-        );
-      },
+  // --- STEP UI BUILDERS ---
+
+  Widget _targetingUI() {
+    return Column(children: [
+      StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('concepts').snapshots(),
+        builder: (context, snap) {
+          if (!snap.hasData) return const LinearProgressIndicator();
+          return _dropdown("Concept Node", snap.data!.docs.map((d) => d.id).toList(), (v) => conceptId = v);
+        }),
+      _dropdown("Guidance Language", ['en-US', 'ml-IN', 'hi-IN'], (v) => lang = v!),
+      _dropdown("Subject Category", ['Literacy', 'Numeracy', 'Science', 'Logic'], (v) => subject = v!),
+    ]);
+  }
+
+  Widget _identityUI() {
+    return Column(children: [
+      TextField(controller: titleController, decoration: const InputDecoration(labelText: "Activity Title", border: OutlineInputBorder())),
+      _dropdown("AI Mode", ['Kinesthetic', 'Visual', 'Auditory'], (v) => mode = v!),
+      _dropdown("Target Age", ['2-3', '3-4', '5-6', '7-8'], (v) => ageGroup = v!),
+    ]);
+  }
+
+  Widget _aiRulesUI() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text("Mastery Goal: ${(mastery * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.bold)),
+      Slider(value: mastery, min: 0.5, max: 1.0, divisions: 5, onChanged: (v) => setState(() => mastery = v)),
+      Text("Redirection Trigger: ${retries.toInt()} failures", style: const TextStyle(fontWeight: FontWeight.bold)),
+      Slider(value: retries, min: 1, max: 5, divisions: 4, onChanged: (v) => setState(() => retries = v)),
+    ]);
+  }
+
+  Widget _rewardsUI() {
+    return Column(children: [
+      Text("Star Reward: ${stars.toInt()}"),
+      Slider(value: stars, min: 5, max: 50, divisions: 9, activeColor: Colors.orange, onChanged: (v) => setState(() => stars = v)),
+    ]);
+  }
+
+  Widget _reviewUI() {
+    return Container(
+      padding: const EdgeInsets.all(15),
+      width: double.infinity,
+      decoration: BoxDecoration(color: Colors.indigo.withOpacity(0.05), borderRadius: BorderRadius.circular(15)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text("Activity: ${titleController.text}", style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text("Mode: $mode | Lang: $lang"),
+        Text("AI Rules: Redirect after ${retries.toInt()} fails."),
+      ]),
     );
   }
 
-  Widget _buildDropdown(String label, List<String> items, Function(String?) onChanged) {
+  // --- HELPERS ---
+
+  Step _buildStep(String t, String s, int i, Widget c) {
+    return Step(
+      isActive: _currentStep >= i,
+      state: _currentStep > i ? StepState.complete : StepState.indexed,
+      title: Text(t, style: const TextStyle(fontWeight: FontWeight.bold)),
+      subtitle: Text(s),
+      content: Padding(padding: const EdgeInsets.symmetric(vertical: 10), child: c),
+    );
+  }
+
+  Widget _dropdown(String l, List<String> items, Function(String?) onC) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(top: 15),
       child: DropdownButtonFormField<String>(
-        decoration: InputDecoration(labelText: label),
-        items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-        onChanged: onChanged,
-        value: items[0],
+        decoration: InputDecoration(labelText: l, border: const OutlineInputBorder()),
+        items: items.map((i) => DropdownMenuItem(value: i, child: Text(i))).toList(),
+        onChanged: onC,
       ),
+    );
+  }
+
+  Widget _buildControls(BuildContext context, ControlsDetails d) {
+    bool isLast = _currentStep == 4;
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Row(children: [
+        ElevatedButton(
+          onPressed: d.onStepContinue,
+          style: ElevatedButton.styleFrom(backgroundColor: isLast ? Colors.green : Colors.indigo),
+          child: Text(isLast ? "PUBLISH" : "NEXT", style: const TextStyle(color: Colors.white)),
+        ),
+        if (_currentStep > 0)
+          TextButton(onPressed: d.onStepCancel, child: const Text("BACK")),
+      ]),
     );
   }
 }

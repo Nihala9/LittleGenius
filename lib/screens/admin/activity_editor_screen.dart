@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../models/activity_model.dart'; // Corrected import path
+import '../../models/activity_model.dart';
 
 class ActivityEditorScreen extends StatefulWidget {
   const ActivityEditorScreen({super.key});
@@ -12,110 +12,68 @@ class ActivityEditorScreen extends StatefulWidget {
 class _ActivityEditorScreenState extends State<ActivityEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controllers
   final titleController = TextEditingController();
   final objectiveController = TextEditingController();
+  final badgeController = TextEditingController(text: "Logic Explorer");
   
-  // Form Values
-  String selectedSubject = 'Math';
-  String selectedType = 'Game';
+  String? selectedConceptId;
+  String selectedLang = 'en-US';
+  String selectedMode = 'Visual'; 
+  String selectedType = 'Game';   
+  String selectedSubject = 'Literacy';
   String selectedAge = '3-4';
   String selectedDifficulty = 'Easy';
-  String selectedLang = 'en-US'; // Added for Universal Language Support
+  double masteryThreshold = 0.9;
+  double retryLimit = 3;
+  double starReward = 10;
   double estimatedTime = 5;
+
+  final Color primaryIndigo = const Color(0xFF4F46E5);
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        title: const Text("Content Authoring Workspace", 
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text("Discard")),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
-              onPressed: _saveActivity, 
-              child: const Text("Publish Activity")
-            ),
-          ),
-        ],
+        title: const Text("Content Workspace", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        elevation: 0,
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1E293B),
       ),
       body: Form(
         key: _formKey,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(30),
+          padding: const EdgeInsets.all(20),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildSectionHeader("1. Basic Metadata", Icons.info_outline),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: titleController,
-                decoration: const InputDecoration(labelText: "Activity Title", border: OutlineInputBorder()),
-                validator: (v) => v!.isEmpty ? "Required" : null,
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _buildDropdown("Subject", ['Math', 'Reading', 'Science', 'Logic'], (v) => selectedSubject = v!)),
-                  const SizedBox(width: 15),
-                  Expanded(child: _buildDropdown("Language", ['en-US', 'ml-IN', 'hi-IN', 'es-ES', 'fr-FR'], (v) => selectedLang = v!)),
-                ],
-              ),
-              
-              const SizedBox(height: 30),
-              _buildSectionHeader("2. Adaptive Learning Rules", Icons.psychology),
-              const SizedBox(height: 20),
-              TextFormField(
-                controller: objectiveController,
-                maxLines: 2,
-                decoration: const InputDecoration(
-                  labelText: "Learning Objective (Instructions for AI Redirection)", 
-                  border: OutlineInputBorder()
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  Expanded(child: _buildDropdown("Target Age", ['2-3', '3-4', '5-6', '7-8'], (v) => selectedAge = v!)),
-                  const SizedBox(width: 15),
-                  Expanded(child: _buildDropdown("Baseline Difficulty", ['Easy', 'Medium', 'Hard'], (v) => selectedDifficulty = v!)),
-                ],
-              ),
-              
-              const SizedBox(height: 30),
-              Text("Estimated Completion Time: ${estimatedTime.toInt()} mins", 
-                style: const TextStyle(fontWeight: FontWeight.bold)),
-              Slider(
-                value: estimatedTime,
-                activeColor: Colors.indigo,
-                min: 2, max: 20, divisions: 9,
-                onChanged: (v) => setState(() => estimatedTime = v),
-              ),
+              _buildSection("AI Logic", Icons.psychology, Column(children: [
+                _buildConceptSelector(),
+                _buildDropdown("AI Redirection Mode", ['Kinesthetic', 'Visual', 'Auditory'], (v) => selectedMode = v!),
+              ])),
+
+              _buildSection("Metadata", Icons.settings_input_component, Column(children: [
+                _buildDropdown("Subject", ['Literacy', 'Numeracy', 'Science', 'Logic'], (v) => selectedSubject = v!),
+                _buildDropdown("Age Group", ['2-3', '3-4', '5-6', '7-8'], (v) => selectedAge = v!),
+                _buildDropdown("Difficulty", ['Easy', 'Medium', 'Hard'], (v) => selectedDifficulty = v!),
+              ])),
+
+              _buildSection("Identity", Icons.badge_outlined, Column(children: [
+                TextFormField(controller: titleController, decoration: const InputDecoration(labelText: "Activity Title", border: OutlineInputBorder())),
+                _buildDropdown("Guidance Language", ['en-US', 'ml-IN', 'hi-IN'], (v) => selectedLang = v!),
+              ])),
 
               const SizedBox(height: 30),
-              _buildSectionHeader("3. Multimedia & Gamification", Icons.perm_media),
-              const SizedBox(height: 15),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(40),
-                decoration: BoxDecoration(
-                  color: Colors.indigo.withOpacity(0.02), 
-                  borderRadius: BorderRadius.circular(12), 
-                  border: Border.all(color: Colors.indigo.withOpacity(0.1))
+
+              ElevatedButton(
+                onPressed: _saveActivity,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: primaryIndigo,
+                  minimumSize: const Size(double.infinity, 60),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                 ),
-                child: const Column(
-                  children: [
-                    Icon(Icons.cloud_upload_outlined, size: 40, color: Colors.indigo),
-                    SizedBox(height: 10),
-                    Text("Upload Game Assets (Lottie/Images/Audio)", 
-                      style: TextStyle(color: Colors.indigo, fontSize: 12)),
-                  ],
-                ),
+                child: const Text("Publish Activity", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
+              const SizedBox(height: 50),
             ],
           ),
         ),
@@ -123,46 +81,69 @@ class _ActivityEditorScreenState extends State<ActivityEditorScreen> {
     );
   }
 
-  Widget _buildSectionHeader(String title, IconData icon) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.indigo, size: 20),
-        const SizedBox(width: 10),
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo)),
-      ],
+  Widget _buildSection(String title, IconData icon, Widget content) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: const Color(0xFFE2E8F0))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(icon, color: primaryIndigo, size: 20), const SizedBox(width: 10), Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))]),
+        const Divider(height: 30),
+        content,
+      ]),
+    );
+  }
+
+  Widget _buildConceptSelector() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance.collection('concepts').snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LinearProgressIndicator();
+        return DropdownButtonFormField<String>(
+          decoration: const InputDecoration(labelText: "Concept Node"),
+          items: snapshot.data!.docs.map((c) => DropdownMenuItem(value: c.id, child: Text(c['name']))).toList(),
+          onChanged: (val) => setState(() => selectedConceptId = val),
+        );
+      },
     );
   }
 
   Widget _buildDropdown(String label, List<String> items, Function(String?) onChanged) {
-    return DropdownButtonFormField<String>(
-      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-      items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-      value: items.contains(label == "Language" ? selectedLang : selectedSubject) ? null : items[0],
-      onChanged: onChanged,
+    return Padding(
+      padding: const EdgeInsets.only(top: 15),
+      child: DropdownButtonFormField<String>(
+        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+        onChanged: onChanged,
+        value: items[0],
+      ),
     );
   }
 
   void _saveActivity() async {
-    if (_formKey.currentState!.validate()) {
+    if (_formKey.currentState!.validate() && selectedConceptId != null) {
+      // FIX: Passing all defined named parameters
       final activity = Activity(
-        id: '', // Generated by Firestore
-        title: titleController.text,
-        objective: objectiveController.text,
-        subject: selectedSubject,
-        type: selectedType,
-        ageGroup: selectedAge,
-        difficulty: selectedDifficulty,
-        estimatedTime: estimatedTime.toInt(),
+        id: '', 
+        conceptId: selectedConceptId!,
         language: selectedLang,
+        activityMode: selectedMode,
+        title: titleController.text,
+        type: selectedType,
+        subject: selectedSubject,      // Now defined in model
+        ageGroup: selectedAge,         // Now defined in model
+        difficulty: selectedDifficulty, // Now defined in model
+        estimatedTime: estimatedTime.toInt(), // Now defined in model
+        masteryGoal: masteryThreshold,
+        retryLimit: retryLimit.toInt(),
+        starReward: starReward.toInt(),
+        badgeName: badgeController.text,
         status: ActivityStatus.published,
         createdAt: DateTime.now(),
       );
       
       await FirebaseFirestore.instance.collection('activities').add(activity.toMap());
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Activity Published Successfully")));
-        Navigator.pop(context);
-      }
+      if (mounted) Navigator.pop(context);
     }
   }
 }

@@ -7,6 +7,7 @@ import 'firebase_options.dart';
 // --- Auth Screens ---
 import 'screens/auth/splash_screen.dart';
 import 'screens/auth/login_screen.dart';
+import 'screens/auth/register_screen.dart';
 
 // --- Admin Screens ---
 import 'screens/admin/admin_dashboard.dart';
@@ -37,6 +38,7 @@ class LittleGeniusApp extends StatelessWidget {
       home: const SplashScreen(),
       routes: {
         '/login': (context) => const LoginScreen(),
+        '/register': (context) => const RegisterScreen(),
         '/admin': (context) => const AdminDashboard(),
         '/parent': (context) => ParentDashboard(),
         '/concepts': (context) => const ConceptManager(), // This should work now
