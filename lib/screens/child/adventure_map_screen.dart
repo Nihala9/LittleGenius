@@ -1,155 +1,94 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'dart:async'; // Required for the timer
 import '../../models/child_profile.dart';
-import '../../services/voice_service.dart';
 import 'activity_screen.dart';
-import 'lock_screen.dart'; // Import the lock screen
 
 class AdventureMapScreen extends StatefulWidget {
   final ChildProfile child;
-
   const AdventureMapScreen({super.key, required this.child});
 
   @override
-  _AdventureMapScreenState createState() => _AdventureMapScreenState();
+  State<AdventureMapScreen> createState() => _AdventureMapScreenState();
 }
 
 class _AdventureMapScreenState extends State<AdventureMapScreen> {
-  final VoiceService _voice = VoiceService();
-  Timer? _usageTimer;
-  int _sessionMinutes = 0;
+  bool _isChecking = false; // Loading state to prevent double-clicks
 
-  @override
-  void initState() {
-    super.initState();
-    // 1. Initial Greeting
-    _voice.speakGreeting(widget.child.name, widget.child.language);
+  // US 04: The gatekeeper function
+  void _startAdventure(String conceptId) async {
+    setState(() => _isChecking = true);
 
-    // 2. Start Screen Time Tracking (Updates every 1 minute)
-    _startTrackingTime();
-  }
+    // Fetch activities that are specifically PUBLISHED and match the LANGUAGE
+    var snapshot = await FirebaseFirestore.instance
+        .collection('activities')
+        .where('conceptId', isEqualTo: conceptId)
+        .where('status', isEqualTo: 'published') 
+        .where('language', isEqualTo: widget.child.language)
+        .get();
 
-  void _startTrackingTime() {
-    _usageTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
-      _incrementUsage();
-    });
-  }
+    setState(() => _isChecking = false);
 
-  Future<void> _incrementUsage() async {
-    _sessionMinutes++;
-    int totalToday = widget.child.usageToday + _sessionMinutes;
+    if (!mounted) return;
 
-    // Update Firestore
-    await FirebaseFirestore.instance
-        .collection('children')
-        .doc(widget.child.id)
-        .update({'usageToday': totalToday});
-
-    // Check if daily limit is reached
-    if (totalToday >= widget.child.dailyLimit) {
-      _usageTimer?.cancel();
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const LockScreen()),
-        );
-      }
+    if (snapshot.docs.isNotEmpty) {
+      // SUCCESS: At least one version of this lesson is published
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ActivityScreen(child: widget.child, conceptId: conceptId),
+        ),
+      );
+    } else {
+      // FAILURE: Content is in DRAFT mode or doesn't exist
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("This adventure is being updated by the Admin. Try again soon!"),
+          backgroundColor: Colors.orange,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
-  }
-
-  @override
-  void dispose() {
-    _usageTimer?.cancel(); // Stop timer when leaving screen
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            colors: [Colors.lightBlueAccent, Colors.white],
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-          ),
-        ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios, color: Colors.blue),
-                      onPressed: () => Navigator.pop(context),
-                    ),
-                    // Progress indicators
-                    Column(
-                      children: [
-                        Row(
-                          children: [
-                            const Icon(Icons.star, color: Colors.orange, size: 24),
-                            Text(" ${widget.child.totalStars}", 
-                              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                        Text("Time: ${widget.child.usageToday}m / ${widget.child.dailyLimit}m",
-                          style: const TextStyle(fontSize: 10, color: Colors.blueGrey)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              
-              const Text("Learning Adventure", 
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.blueAccent)),
-              
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _buildLevelButton(Icons.abc, "Alphabets", Colors.purple),
-                      const SizedBox(height: 30),
-                      _buildLevelButton(Icons.calculate, "Numbers", Colors.green),
-                      const SizedBox(height: 30),
-                      _buildLevelButton(Icons.pets, "Animals", Colors.orange),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+      backgroundColor: Colors.white,
+      appBar: AppBar(
+        title: const Text("Learning Map", style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
+      body: _isChecking 
+        ? const Center(child: CircularProgressIndicator()) 
+        : Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                // MUST USE _startAdventure logic here
+                _buildMapNode("Alphabets", "Letter_A", Icons.abc, Colors.purple),
+                const SizedBox(height: 30),
+                _buildMapNode("Numbers", "Number_1", Icons.calculate, Colors.orange),
+              ],
+            ),
+          ),
     );
   }
 
-  Widget _buildLevelButton(IconData icon, String title, Color color) {
+  Widget _buildMapNode(String title, String cId, IconData icon, Color color) {
     return InkWell(
-      onTap: () {
-        if (title == "Alphabets") {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => ActivityScreen(child: widget.child, conceptId: "Letter_A"),
-            ),
-          );
-        }
-      },
+      borderRadius: BorderRadius.circular(50),
+      onTap: () => _startAdventure(cId), // This calls the database check
       child: Column(
         children: [
           CircleAvatar(
-            radius: 45,
-            backgroundColor: color,
-            child: Icon(icon, color: Colors.white, size: 50),
+            radius: 45, 
+            backgroundColor: color.withOpacity(0.1), 
+            child: Icon(icon, color: color, size: 40)
           ),
-          const SizedBox(height: 8),
-          Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 10),
+          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
     );

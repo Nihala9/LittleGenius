@@ -8,11 +8,12 @@ class Activity {
   String language;
   String activityMode;
   String title;
+  String objective; // The field that was missing
   String type;
-  String subject;      // Added
-  String ageGroup;     // Added
-  String difficulty;   // Added
-  int estimatedTime;   // Added
+  String subject;
+  String ageGroup;
+  String difficulty;
+  int estimatedTime;
   double masteryGoal;
   int retryLimit;
   int starReward;
@@ -26,11 +27,12 @@ class Activity {
     required this.language,
     required this.activityMode,
     required this.title,
+    required this.objective,
     required this.type,
-    required this.subject,      // Required in constructor
-    required this.ageGroup,     // Required in constructor
-    required this.difficulty,   // Required in constructor
-    required this.estimatedTime, // Required in constructor
+    required this.subject,
+    required this.ageGroup,
+    required this.difficulty,
+    required this.estimatedTime,
     this.masteryGoal = 0.9,
     this.retryLimit = 3,
     this.starReward = 10,
@@ -45,6 +47,7 @@ class Activity {
       'language': language,
       'activityMode': activityMode,
       'title': title,
+      'objective': objective,
       'type': type,
       'subject': subject,
       'ageGroup': ageGroup,
@@ -65,12 +68,13 @@ class Activity {
       conceptId: map['conceptId'] ?? '',
       language: map['language'] ?? 'en-US',
       activityMode: map['activityMode'] ?? 'Visual',
-      title: map['title'] ?? 'New Activity',
+      title: map['title'] ?? 'Untitled',
+      objective: map['objective'] ?? '',
       type: map['type'] ?? 'Game',
       subject: map['subject'] ?? 'Literacy',
-      ageGroup: map['ageGroup'] ?? '3-4',
+      ageGroup: map['ageGroup'] ?? '3-7',
       difficulty: map['difficulty'] ?? 'Easy',
-      estimatedTime: map['estimatedTime'] ?? 5,
+      estimatedTime: (map['estimatedTime'] ?? 5).toInt(),
       masteryGoal: (map['masteryGoal'] ?? 0.9).toDouble(),
       retryLimit: (map['retryLimit'] ?? 3).toInt(),
       starReward: (map['starReward'] ?? 10).toInt(),

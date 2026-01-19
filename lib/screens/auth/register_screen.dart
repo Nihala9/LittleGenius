@@ -23,8 +23,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   double _strengthValue = 0;
   void _checkPasswordStrength(String value) {
     setState(() {
-      if (value.isEmpty) _strengthValue = 0;
-      else if (value.length < 6) _strengthValue = 0.3;
+      if (value.isEmpty) {
+        _strengthValue = 0;
+      } else if (value.length < 6) _strengthValue = 0.3;
       else if (value.length < 10) _strengthValue = 0.6;
       else _strengthValue = 1.0;
     });
