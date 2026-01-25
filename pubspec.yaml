@@ -26,20 +26,29 @@ dependencies:
   # --- UI & Charts ---
   google_fonts: ^6.2.1       
   fl_chart: ^0.68.0          
-  # REMOVED lucide_icons to fix the dependency error
 
   # --- Utility ---
   cupertino_icons: ^1.0.8
-  intl: ^0.20.2              
+  intl: ^0.20.2     
+  
+  # --- pdf ---
+  pdf: ^3.10.0
+  printing: ^5.11.0
+
+  shared_preferences: ^2.2.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
 
+# --- THE MISSING SECTION STARTS HERE ---
+# Make sure the word "flutter:" is not indented (starts at the very left)
 flutter:
   uses-material-design: true
+
+  # Register your asset folders here
+  # If you don't list them here, Flutter won't show your images or animations
   assets:
     - assets/images/
     - assets/animations/
-    - assets/icons/

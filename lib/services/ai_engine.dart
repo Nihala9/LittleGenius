@@ -1,77 +1,54 @@
-import 'dart:math';
-import '../models/learning_log.dart';
+import '../models/child_model.dart';
+import '../models/activity_model.dart';
+import 'database_service.dart';
 
 class AIEngine {
-  // --- DYNAMIC BKT PARAMETERS ---
-  // These are no longer 'const' so the Admin can tune them globally
-  static double pLearn = 0.4;
-  static double pGuess = 0.2;
-  static double pSlip = 0.1;
+  final _db = DatabaseService();
 
-  /// ADMIN SYNC: Updates the global AI parameters from Firestore settings
-  static void syncRules(Map<String, dynamic> rules) {
-    pLearn = (rules['pLearn'] ?? 0.4).toDouble();
-    pGuess = (rules['pGuess'] ?? 0.2).toDouble();
-    pSlip = (rules['pSlip'] ?? 0.1).toDouble();
-  }
-
-  /// Bayesian Knowledge Tracing (BKT) Calculation
-  /// Predicts the new mastery probability based on current success or failure
-  static double calculateNewMastery(double oldMastery, bool isSuccess) {
-    double pKnown;
-    if (isSuccess) {
-      // Probability they knew it given they succeeded
-      pKnown = (oldMastery * (1 - pSlip)) / 
-               ((oldMastery * (1 - pSlip)) + ((1 - oldMastery) * pGuess));
-    } else {
-      // Probability they knew it given they failed
-      pKnown = (oldMastery * pSlip) / 
-               ((oldMastery * pSlip) + ((1 - oldMastery) * (1 - pGuess)));
+  Future<Activity?> getPersonalizedActivity(ChildProfile child, String conceptId) async {
+    // 1. Fetch available activities for this concept
+    List<Activity> allActivities = await _db.streamActivitiesForConcept(conceptId).first;
+    
+    // Filter by child's language
+    List<Activity> localized = allActivities.where((a) => a.language == child.language).toList();
+    
+    if (localized.isEmpty) {
+      print("AI DEBUG: No activities found for ${child.language}");
+      return null;
     }
 
-    // Update mastery based on learning probability
-    double newMastery = pKnown + (1 - pKnown) * pLearn;
-    return newMastery.clamp(0.0, 1.0);
-  }
+    double currentMastery = child.masteryScores[conceptId] ?? 0.0;
+    String currentPreference = child.preferredMode;
 
-  /// PERFORMANCE CHECK: Compare current mastery against the dynamic Concept threshold
-  static bool hasMastered(double currentScore, double conceptThreshold) {
-    return currentScore >= conceptThreshold;
-  }
+    print("AI DEBUG: Child ${child.name} has Mastery: $currentMastery. Preferred Mode: $currentPreference");
 
-  /// REDIRECTION LOGIC: Check for consecutive failures based on Admin threshold
-  static bool shouldRedirect(List<LearningLog> logs, int adminThreshold) {
-    if (logs.length < adminThreshold) return false;
-    
-    // Check if the last 'N' attempts were all failures
-    int consecutiveFailures = 0;
-    for (var log in logs.reversed.take(adminThreshold)) {
-      if (!log.isSuccess) {
-        consecutiveFailures++;
-      } else {
-        break;
+    // 2. REDIRECTION LOGIC (The "Child 2" Logic)
+    // If Mastery is low, we MUST find something different from the current preference
+    if (currentMastery < 0.3 && localized.length > 1) {
+      print("AI DEBUG: Mastery too low! Attempting Redirection...");
+
+      try {
+        // Find an activity where the mode is NOT the one they are currently failing
+        Activity alternative = localized.firstWhere(
+          (a) => a.activityMode.toLowerCase() != currentPreference.toLowerCase()
+        );
+
+        print("AI DEBUG: REDIRECTION SUCCESS! Switching to ${alternative.activityMode}");
+        
+        // Update the database so the AI remembers this new preference
+        await _db.updatePreferredMode(child.id, alternative.activityMode);
+        
+        return alternative;
+      } catch (e) {
+        print("AI DEBUG: No alternative mode found in DB. Staying in $currentPreference");
       }
     }
-    return consecutiveFailures >= adminThreshold;
-  }
 
-  /// Multi-Armed Bandit (MAB) Recommendation
-  /// Selects an alternative learning mode when the current one fails
-  static String decideNextMode(List<LearningLog> logs, String currentMode) {
-    // gathering data threshold
-    if (logs.length < 3) return currentMode;
-
-    int failures = logs.where((log) => !log.isSuccess).length;
-
-    // Trigger redirection if general performance is low
-    if (failures >= 2) {
-      List<String> allModes = ['Tracing', 'Matching', 'Audio', 'Puzzle'];
-      allModes.remove(currentMode);
-
-      // Explore a different "Arm" (pedagogical style)
-      return allModes[Random().nextInt(allModes.length)];
-    }
-
-    return currentMode;
+    // 3. STABILITY LOGIC (The "Child 1" Logic)
+    // Try to give the child their preferred mode if they are doing okay
+    return localized.firstWhere(
+      (a) => a.activityMode.toLowerCase() == currentPreference.toLowerCase(),
+      orElse: () => localized.first,
+    );
   }
 }
