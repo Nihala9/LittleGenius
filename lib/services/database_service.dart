@@ -99,6 +99,25 @@ class DatabaseService {
         .snapshots().map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
+  // --- Admin: Toggle Visibility ---
+Future<void> toggleConceptVisibility(String id, bool status) async {
+  await _db.collection('concepts').doc(id).update({'isPublished': status});
+}
+
+Future<void> toggleActivityVisibility(String id, bool status) async {
+  await _db.collection('activities').doc(id).update({'isPublished': status});
+}
+
+// --- Child: Filtered Stream (ONLY PUBLISHED) ---
+Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
+  return _db.collection('concepts')
+      .where('category', isEqualTo: category)
+      .where('isPublished', isEqualTo: true) // THE GLOBAL FILTER
+      .orderBy('order')
+      .snapshots()
+      .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+}
+
   // --- GLOBAL MONITORING (FOR ADMIN) ---
   Stream<QuerySnapshot> streamAllParents() {
     return _db.collection('users').where('role', isEqualTo: 'parent').snapshots();

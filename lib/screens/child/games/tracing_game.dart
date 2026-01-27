@@ -28,7 +28,7 @@ class _TracingGameState extends State<TracingGame> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(30),
               border: Border.all(color: AppColors.lavender, width: 4),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 20)],
+              boxShadow: [BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 20)],
             ),
             child: GestureDetector(
               onPanUpdate: (details) {

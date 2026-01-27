@@ -14,6 +14,7 @@ import 'screens/parent/profile_selector.dart';
 import 'screens/parent/parent_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/parent/profile_wizard_screen.dart';
+import 'screens/admin/admin_settings_screen.dart';
 import 'utils/app_colors.dart';
 
 void main() async {
@@ -76,6 +77,7 @@ class LittleGeniusApp extends StatelessWidget {
             '/parent_dashboard': (context) => const ParentDashboard(),
             '/admin_dashboard': (context) => const AdminDashboard(),
             '/add_child': (context) => const ProfileWizardScreen(),
+            '/admin_settings': (context) => const AdminSettingsScreen(), 
           },
         );
       },
