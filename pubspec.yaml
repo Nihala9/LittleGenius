@@ -51,4 +51,5 @@ flutter:
   # If you don't list them here, Flutter won't show your images or animations
   assets:
     - assets/images/
+    - assets/images/buddies/
     - assets/animations/

@@ -12,69 +12,82 @@ class AdminCategoryScreen extends StatelessWidget {
   // --- CRUD: SHOW DIALOG FOR ADD/EDIT ---
   void _showCategoryDialog(BuildContext context, ThemeService theme, {Map<String, dynamic>? existing}) {
     final nameCtrl = TextEditingController(text: existing?['name'] ?? "");
+    int selectedIconCode = existing?['iconCode'] ?? Icons.folder_rounded.codePoint;
+    
+    final List<IconData> availableIcons = [
+      Icons.abc_rounded, Icons.numbers_rounded, Icons.pets_rounded, 
+      Icons.category_rounded, Icons.palette_rounded, Icons.star_rounded,
+      Icons.directions_car_rounded, Icons.music_note_rounded
+    ];
+
     final db = DatabaseService();
 
     showDialog(
       context: context, 
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.cardColor,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          existing == null ? "Create New Category" : "Edit Category", 
-          style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold)
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text("Define a high-level folder for your lessons (e.g., Alphabets, Animals).", 
-              style: TextStyle(fontSize: 12, color: Colors.grey)),
-            const SizedBox(height: 20),
-            TextField(
-              controller: nameCtrl, 
-              style: TextStyle(color: theme.textColor),
-              decoration: InputDecoration(
-                hintText: "Category Name",
-                filled: true,
-                fillColor: theme.isDarkMode ? Colors.white.withAlpha(5) : Colors.grey.shade50,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: theme.cardColor,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            existing == null ? "New Category" : "Edit Category", 
+            style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold)
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: nameCtrl, 
+                  style: TextStyle(color: theme.textColor),
+                  decoration: const InputDecoration(labelText: "Category Name", border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 20),
+                const Text("Visual Icon", style: TextStyle(fontSize: 12, color: Colors.grey)),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 10,
+                  runSpacing: 10,
+                  children: availableIcons.map((icon) => GestureDetector(
+                    onTap: () => setDialogState(() => selectedIconCode = icon.codePoint),
+                    child: CircleAvatar(
+                      backgroundColor: selectedIconCode == icon.codePoint ? AppColors.oceanBlue : theme.borderColor,
+                      radius: 20,
+                      child: Icon(icon, color: selectedIconCode == icon.codePoint ? Colors.white : theme.textColor, size: 20),
+                    ),
+                  )).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.oceanBlue),
+              onPressed: () async {
+                if (nameCtrl.text.isEmpty) return;
+                final data = {
+                  'name': nameCtrl.text.trim(),
+                  'iconCode': selectedIconCode,
+                };
+                existing == null ? await db.addCategory(data) : await db.updateCategory(existing['id'], data);
+                if (context.mounted) Navigator.pop(ctx);
+              }, 
+              child: const Text("Save", style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.oceanBlue,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))
-            ),
-            onPressed: () async {
-              if (nameCtrl.text.isEmpty) return;
-              final data = {'name': nameCtrl.text.trim()};
-              
-              if (existing == null) {
-                await db.addCategory(data);
-              } else {
-                await db.updateCategory(existing['id'], data);
-              }
-              if (context.mounted) Navigator.pop(ctx);
-            }, 
-            child: const Text("Save Category", style: TextStyle(color: Colors.white)),
-          ),
-        ],
       ),
     );
   }
 
-  // --- CRUD: DELETE CONFIRMATION ---
   void _confirmDelete(BuildContext context, String id, String name) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Category?"),
-        content: Text("Warning: Deleting '$name' will make all lessons inside it inaccessible."),
+        content: Text("Are you sure you want to delete '$name'?"),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Keep it")),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
             onPressed: () async {
               await DatabaseService().deleteCategory(id);
@@ -93,12 +106,10 @@ class AdminCategoryScreen extends StatelessWidget {
     final db = DatabaseService();
 
     return AdminScaffold(
-      title: "Content Categories",
-      // BREADCRUMB PATH: Home > Categories
+      title: "Content Roadmap",
       breadcrumbs: const ["Home", "Categories"],
       body: Stack(
         children: [
-          // 1. DYNAMIC CATEGORY LIST
           StreamBuilder<List<Map<String, dynamic>>>(
             stream: db.streamCategories(),
             builder: (context, snapshot) {
@@ -108,59 +119,39 @@ class AdminCategoryScreen extends StatelessWidget {
               
               final list = snapshot.data ?? [];
 
-              if (list.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.folder_open_rounded, size: 80, color: theme.subTextColor),
-                      const SizedBox(height: 20),
-                      Text("No categories found.", style: TextStyle(color: theme.subTextColor, fontWeight: FontWeight.bold)),
-                      const Text("Click (+) to start building the learning library.", style: TextStyle(color: Colors.grey, fontSize: 12)),
-                    ],
-                  ),
-                );
-              }
-
               return ListView.builder(
-                padding: const EdgeInsets.fromLTRB(20, 10, 20, 100), // Extra bottom padding for FAB
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                 itemCount: list.length,
                 itemBuilder: (context, i) {
                   final cat = list[i];
-                  return Container(
+                  String firstLetter = cat['name'] != null && cat['name'].isNotEmpty 
+                      ? cat['name'][0].toUpperCase() : "?";
+
+                  return Card(
+                    color: theme.cardColor,
                     margin: const EdgeInsets.only(bottom: 15),
-                    decoration: BoxDecoration(
-                      color: theme.cardColor,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: theme.borderColor),
-                      boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10, offset: const Offset(0, 4))],
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20), 
+                      side: BorderSide(color: theme.borderColor)
                     ),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                      leading: Container(
-                        padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(
-                          color: AppColors.oceanBlue.withAlpha(20),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.folder_rounded, color: AppColors.oceanBlue),
+                      contentPadding: const EdgeInsets.all(15),
+                      // ALPHABETICAL BADGE: Shows the first letter
+                      leading: CircleAvatar(
+                        backgroundColor: AppColors.oceanBlue,
+                        child: Text(firstLetter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                       title: Text(cat['name'], 
                         style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold, fontSize: 18)),
-                      subtitle: const Text("Lesson Folder", style: TextStyle(color: AppColors.teal, fontSize: 10, fontWeight: FontWeight.bold)),
+                      subtitle: const Text("Learning Folder", style: TextStyle(color: AppColors.teal, fontSize: 11)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined, size: 20), 
-                            onPressed: () => _showCategoryDialog(context, theme, existing: cat)
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent, size: 20), 
-                            onPressed: () => _confirmDelete(context, cat['id'], cat['name'])
-                          ),
-                          const VerticalDivider(),
-                          const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.oceanBlue),
+                          IconButton(icon: const Icon(Icons.edit_outlined, size: 20), 
+                            onPressed: () => _showCategoryDialog(context, theme, existing: cat)),
+                          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20), 
+                            onPressed: () => _confirmDelete(context, cat['id'], cat['name'])),
                         ],
                       ),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -172,18 +163,13 @@ class AdminCategoryScreen extends StatelessWidget {
               );
             },
           ),
-          
-          // 2. FLOATING ADD BUTTON (Positioned inside the Stack)
           Positioned(
-            bottom: 30,
-            right: 30,
+            bottom: 30, right: 30,
             child: FloatingActionButton.extended(
               onPressed: () => _showCategoryDialog(context, theme),
               backgroundColor: AppColors.oceanBlue,
-              elevation: 8,
               icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text("Add Category", 
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+              label: const Text("New Category", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           )
         ],

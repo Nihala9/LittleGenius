@@ -3,16 +3,21 @@ class ChildProfile {
   String name;
   int age;
   String language;
-  String avatarUrl; // Changed from local path to URL
+  String avatarUrl;
+  String buddyType; 
+  final String profileEmoji; // NEW: For sibling identity
+  final String profileColor; // NEW: For sibling identity
   String preferredMode;
   int totalStars;
+  int dailyLimit;
   Map<String, double> masteryScores;
 
   ChildProfile({
     required this.id, required this.name, required this.age, 
-    required this.language, required this.avatarUrl, 
-    this.preferredMode = "Visual", this.totalStars = 0, 
-    this.masteryScores = const {},
+    required this.language, required this.avatarUrl, required this.buddyType,
+     required this.profileEmoji, required this.profileColor,
+    this.preferredMode = "Tracing", this.totalStars = 0, 
+    this.dailyLimit = 30, this.masteryScores = const {},
   });
 
   factory ChildProfile.fromMap(Map<String, dynamic> data, String id) {
@@ -21,9 +26,13 @@ class ChildProfile {
       name: data['name'] ?? '',
       age: data['age'] ?? 3,
       language: data['language'] ?? 'English',
-      avatarUrl: data['avatarUrl'] ?? 'https://api.dicebear.com/7.x/bottts/png?seed=default',
-      preferredMode: data['preferredMode'] ?? 'Visual',
+      avatarUrl: data['avatarUrl'] ?? '',
+      buddyType: data['buddyType'] ?? 'Robo-B1',
+      profileEmoji: data['profileEmoji'] ?? '⭐', // Read from DB
+      profileColor: data['profileColor'] ?? '0xFF80B3FF', // Read from DB
+      preferredMode: data['preferredMode'] ?? 'Tracing',
       totalStars: data['totalStars'] ?? 0,
+      dailyLimit: data['dailyLimit'] ?? 30,
       masteryScores: Map<String, double>.from(data['masteryScores'] ?? {}),
     );
   }
@@ -31,8 +40,10 @@ class ChildProfile {
   Map<String, dynamic> toMap() {
     return {
       'name': name, 'age': age, 'language': language, 
-      'avatarUrl': avatarUrl, 'preferredMode': preferredMode, 
-      'totalStars': totalStars, 'masteryScores': masteryScores,
+      'avatarUrl': avatarUrl, 'buddyType': buddyType,
+      'profileEmoji': profileEmoji, 'profileColor': profileColor,
+      'preferredMode': preferredMode, 'totalStars': totalStars,
+      'dailyLimit': dailyLimit, 'masteryScores': masteryScores,
     };
   }
 }

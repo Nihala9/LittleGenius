@@ -43,17 +43,34 @@ class DatabaseService {
     }
   }
 
-  // --- ADMIN CONTENT MANAGEMENT ---
+  // --- ADMIN CONTENT: CATEGORY CRUD ---
+  Stream<List<Map<String, dynamic>>> streamCategories() {
+    return _db.collection('categories')
+        .orderBy('name') // Alphabetical A-Z
+        .snapshots()
+        .map((snapshot) => snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
+  }
+
+  Future<void> addCategory(Map<String, dynamic> data) async => await _db.collection('categories').add(data);
+  Future<void> updateCategory(String id, Map<String, dynamic> data) async => await _db.collection('categories').doc(id).update(data);
+  Future<void> deleteCategory(String id) async => await _db.collection('categories').doc(id).delete();
+
+  // --- ADMIN CONTENT: CONCEPT CRUD ---
   Future<void> addConcept(Concept c) async => await _db.collection('concepts').add(c.toMap());
   
+  // UPDATED: Now sorts by Name (A-Z) instead of Order
   Stream<List<Concept>> streamConcepts() {
-    return _db.collection('concepts').orderBy('order').snapshots()
+    return _db.collection('concepts').orderBy('name').snapshots()
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
+  // UPDATED: Filtered concepts also sort by Name (A-Z)
   Stream<List<Concept>> streamConceptsByCategory(String category) {
-    return _db.collection('concepts').where('category', isEqualTo: category).orderBy('order')
-        .snapshots().map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+    return _db.collection('concepts')
+        .where('category', isEqualTo: category)
+        .orderBy('name') // Alphabetical sorting for lessons
+        .snapshots()
+        .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
   Future<void> updateConcept(String id, Map<String, dynamic> data) async {
@@ -61,37 +78,16 @@ class DatabaseService {
   }
 
   Future<void> deleteConcept(String id) async => await _db.collection('concepts').doc(id).delete();
- 
-  // --- CATEGORY CRUD ---
-  Stream<List<Map<String, dynamic>>> streamCategories() {
-    return _db.collection('categories').snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
-  }
 
-  Future<void> addCategory(Map<String, dynamic> data) async {
-    await _db.collection('categories').add(data);
-  }
-
-  Future<void> updateCategory(String id, Map<String, dynamic> data) async {
-    await _db.collection('categories').doc(id).update(data);
-  }
-
-  Future<void> deleteCategory(String id) async {
-    await _db.collection('categories').doc(id).delete();
-  }
-  
-  // --- ACTIVITY MANAGEMENT ---
+  // --- ADMIN CONTENT: ACTIVITY CRUD ---
   Future<void> addActivity(Activity a) async {
     await _db.collection('activities').add({
       'conceptId': a.conceptId, 'title': a.title, 'activityMode': a.activityMode,
-      'language': a.language, 'difficulty': a.difficulty,
+      'language': a.language, 'difficulty': a.difficulty, 'isPublished': false,
     });
   }
 
-  Future<void> updateActivity(String id, Map<String, dynamic> data) async {
-    await _db.collection('activities').doc(id).update(data);
-  }
-
+  Future<void> updateActivity(String id, Map<String, dynamic> data) async => await _db.collection('activities').doc(id).update(data);
   Future<void> deleteActivity(String id) async => await _db.collection('activities').doc(id).delete();
 
   Stream<List<Activity>> streamActivitiesForConcept(String cid) {
@@ -99,24 +95,20 @@ class DatabaseService {
         .snapshots().map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- Admin: Toggle Visibility ---
-Future<void> toggleConceptVisibility(String id, bool status) async {
-  await _db.collection('concepts').doc(id).update({'isPublished': status});
-}
+  // --- SPRINT 1: VISIBILITY & GLOBAL MONITORING ---
+  Future<void> toggleConceptVisibility(String id, bool status) async {
+    await _db.collection('concepts').doc(id).update({'isPublished': status});
+  }
 
-Future<void> toggleActivityVisibility(String id, bool status) async {
-  await _db.collection('activities').doc(id).update({'isPublished': status});
-}
-
-// --- Child: Filtered Stream (ONLY PUBLISHED) ---
-Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
-  return _db.collection('concepts')
-      .where('category', isEqualTo: category)
-      .where('isPublished', isEqualTo: true) // THE GLOBAL FILTER
-      .orderBy('order')
-      .snapshots()
-      .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
-}
+  // UPDATED: Published stream also follows alphabetical order
+  Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
+    return _db.collection('concepts')
+        .where('category', isEqualTo: category)
+        .where('isPublished', isEqualTo: true)
+        .orderBy('name') // Sorting A-Z for the child's explorer view
+        .snapshots()
+        .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+  }
 
   // --- GLOBAL MONITORING (FOR ADMIN) ---
   Stream<QuerySnapshot> streamAllParents() {
@@ -143,4 +135,3 @@ Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
     return {for (var d in snap.docs) d.id: d.data()['name'] ?? 'Lesson'};
   }
 }
-

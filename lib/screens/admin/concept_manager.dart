@@ -18,6 +18,7 @@ class ConceptManagerScreen extends StatefulWidget {
 class _ConceptManagerScreenState extends State<ConceptManagerScreen> {
   final _db = DatabaseService();
 
+  // --- CRUD: ADD/EDIT DIALOG ---
   void _showConceptDialog(BuildContext context, ThemeService theme, {Concept? existing}) {
     final nameCtrl = TextEditingController(text: existing?.name ?? "");
     final orderCtrl = TextEditingController(text: existing?.order.toString() ?? "1");
@@ -71,6 +72,24 @@ class _ConceptManagerScreenState extends State<ConceptManagerScreen> {
     );
   }
 
+  // --- CRUD: DELETE LOGIC ---
+  void _confirmDelete(Concept concept) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Delete Lesson?"),
+        content: Text("Are you sure you want to delete '${concept.name}'?"),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
+          TextButton(onPressed: () async {
+            await _db.deleteConcept(concept.id);
+            if (mounted) Navigator.pop(ctx);
+          }, child: const Text("Delete", style: TextStyle(color: Colors.redAccent))),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Provider.of<ThemeService>(context);
@@ -98,33 +117,30 @@ class _ConceptManagerScreenState extends State<ConceptManagerScreen> {
                     decoration: BoxDecoration(
                       color: theme.cardColor,
                       borderRadius: BorderRadius.circular(20),
-                      // VISUAL FEEDBACK: Teal border for Published, Grey for Draft
                       border: Border.all(color: item.isPublished ? AppColors.teal : theme.borderColor, width: 2),
+                      boxShadow: [BoxShadow(color: Colors.black.withAlpha(5), blurRadius: 10)],
                     ),
                     child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                       leading: CircleAvatar(
                         backgroundColor: item.isPublished ? AppColors.teal.withAlpha(30) : Colors.grey.withAlpha(30),
                         child: Text("${item.order}", style: TextStyle(color: item.isPublished ? AppColors.teal : Colors.grey, fontWeight: FontWeight.bold)),
                       ),
                       title: Text(item.name, style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold)),
-                      subtitle: Text(item.isPublished ? "Status: Live" : "Status: Draft", 
-                        style: TextStyle(color: item.isPublished ? AppColors.teal : Colors.grey, fontSize: 10, fontWeight: FontWeight.bold)),
+                      subtitle: Text(item.isPublished ? "Live" : "Draft", style: TextStyle(color: item.isPublished ? AppColors.teal : Colors.grey, fontSize: 10)),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          // GLOBAL VISIBILITY TOGGLE
                           Switch(
                             activeColor: AppColors.teal,
                             value: item.isPublished, 
-                            onChanged: (val) => _db.updateConcept(item.id, {'isPublished': val}),
+                            onChanged: (val) => _db.toggleConceptVisibility(item.id, val),
                           ),
-                          const VerticalDivider(),
-                          IconButton(icon: const Icon(Icons.games_rounded, color: AppColors.accentOrange), 
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ActivityManagerScreen(concept: item)))),
+                          IconButton(icon: const Icon(Icons.edit_outlined, size: 20), onPressed: () => _showConceptDialog(context, theme, existing: item)),
+                          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20), onPressed: () => _confirmDelete(item)),
+                          const Icon(Icons.chevron_right, color: AppColors.oceanBlue),
                         ],
                       ),
-                      onLongPress: () => _showConceptDialog(context, theme, existing: item),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ActivityManagerScreen(concept: item))),
                     ),
                   );
                 },
@@ -135,9 +151,9 @@ class _ConceptManagerScreenState extends State<ConceptManagerScreen> {
             bottom: 30, right: 30,
             child: FloatingActionButton.extended(
               onPressed: () => _showConceptDialog(context, theme),
-              backgroundColor: AppColors.oceanBlue,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text("New Lesson", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              backgroundColor: const Color.fromARGB(255, 186, 226, 250),
+              icon: const Icon(Icons.add),
+              label: const Text("Add Lesson"),
             ),
           )
         ],
