@@ -1,235 +1,195 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math' as math;
+import 'package:animate_do/animate_do.dart';
 import '../../models/child_model.dart';
 import '../../models/concept_model.dart';
+import '../../models/activity_model.dart';
 import '../../services/database_service.dart';
 import '../../services/ai_engine.dart';
+import '../../services/sound_service.dart'; // Using your SoundService
 import '../../utils/app_colors.dart';
 import 'game_container.dart';
 
-class LearningMapScreen extends StatefulWidget {
+class LearningMapScreen extends StatelessWidget {
   final ChildProfile child;
   final String category;
 
   const LearningMapScreen({super.key, required this.child, required this.category});
 
   @override
-  State<LearningMapScreen> createState() => _LearningMapScreenState();
-}
-
-class _LearningMapScreenState extends State<LearningMapScreen> with TickerProviderStateMixin {
-  late AnimationController _pulseController;
-  late AnimationController _floatController;
-  final _db = DatabaseService();
-  final _ai = AIEngine();
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(duration: const Duration(seconds: 1), vsync: this)..repeat(reverse: true);
-    _floatController = AnimationController(duration: const Duration(seconds: 2), vsync: this)..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    _floatController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
+    final db = DatabaseService();
+    final ai = AIEngine();
 
     return Scaffold(
-      extendBodyBehindAppBar: true,
-      appBar: AppBar(
-        backgroundColor: Colors.white.withAlpha(180),
-        elevation: 0,
-        title: Text("${widget.category} Kingdom", style: const TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<List<Concept>>(
-        stream: _db.streamPublishedConceptsByCategory(widget.category),
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
-          final concepts = snapshot.data!;
-          double mapHeight = math.max(MediaQuery.of(context).size.height, concepts.length * 180.0 + 400);
-
-          return SingleChildScrollView(
-            child: Container(
-              height: mapHeight,
-              width: screenWidth,
-              decoration: _buildWorldGradient(),
-              child: Stack(
-                children: [
-                  // LAYER 1: THE ROAD PAINTER
-                  Positioned.fill(
-                    child: CustomPaint(painter: AdventurePathPainter(concepts.length, mapHeight)),
-                  ),
-
-                  // LAYER 2: DECORATIONS (Trees, Flowers, Animals)
-                  ..._buildWorldDecorations(concepts.length, mapHeight, screenWidth),
-
-                  // LAYER 3: INTERACTIVE LEVELS & MASCOT
-                  ...List.generate(concepts.length, (index) {
-                    bool isUnlocked = index == 0 || (widget.child.masteryScores[concepts[index - 1].id] ?? 0.0) > 0.8;
-                    bool isCurrent = isUnlocked && (widget.child.masteryScores[concepts[index].id] ?? 0.0) < 0.8;
-                    
-                    return _buildLevelNode(concepts[index], index, isUnlocked, isCurrent, mapHeight, screenWidth);
-                  }),
-                ],
+      body: Stack(
+        children: [
+          // 1. THE IMMERSIVE BACKGROUND
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage('assets/images/map_bg.jpg'),
+                fit: BoxFit.cover,
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
+          ),
 
-  // --- GAME GRAPHICS: BIOME GRADIENT ---
-  BoxDecoration _buildWorldGradient() {
-    return const BoxDecoration(
-      gradient: LinearGradient(
-        begin: Alignment.bottomCenter,
-        end: Alignment.topCenter,
-        colors: [
-          Color(0xFF7CB342), // Meadow Green
-          Color(0xFF4DD0E1), // River Blue
-          Color(0xFFFFD54F), // Desert Sand
-          Color(0xFFE1F5FE), // Cloud Heights
-        ],
-      ),
-    );
-  }
+          // 2. SCROLLABLE ADVENTURE PATH
+          StreamBuilder<List<Concept>>(
+            stream: db.streamPublishedConceptsByCategory(category),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+              final concepts = snapshot.data!;
 
-  // --- GAME GRAPHICS: SCATTERED DECORATIONS ---
-  List<Widget> _buildWorldDecorations(int count, double height, double width) {
-    List<Widget> decorations = [];
-    final random = math.Random(widget.category.length); // Seeded random stays consistent
-    
-    for (int i = 0; i < count * 2; i++) {
-      double y = random.nextDouble() * height;
-      double x = random.nextDouble() * width;
-      String emoji = ["🌲", "🌸", "🏡", "🐄", "☁️", "🍄"][random.nextInt(6)];
-      
-      decorations.add(Positioned(
-        left: x, top: y,
-        child: Opacity(opacity: 0.6, child: Text(emoji, style: const TextStyle(fontSize: 30))),
-      ));
-    }
-    return decorations;
-  }
-
-  Widget _buildLevelNode(Concept concept, int index, bool isUnlocked, bool isCurrent, double mapHeight, double screenWidth) {
-    // SINE MATH for the curve
-    double xPos = (screenWidth / 2 - 45) + (math.sin(index * 1.2) * (screenWidth * 0.28));
-    double yPos = mapHeight - (index * 180.0) - 250;
-
-    return Positioned(
-      left: xPos,
-      top: yPos,
-      child: Column(
-        children: [
-          if (isCurrent) _buildCurrentPlayerMarker(), // Show Buddy on current level
-          GestureDetector(
-            onTap: isUnlocked ? () async {
-              var activity = await _ai.getPersonalizedActivity(widget.child, concept.id);
-              if (activity != null) {
-                Navigator.push(context, MaterialPageRoute(builder: (c) => GameContainer(child: widget.child, activity: activity, parentId: FirebaseAuth.instance.currentUser!.uid)));
+              if (concepts.isEmpty) {
+                return const Center(child: Text("No levels found yet!", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)));
               }
-            } : null,
-            child: _buildBubble(index, isUnlocked, isCurrent),
+
+              return ListView.builder(
+                padding: const EdgeInsets.symmetric(vertical: 120, horizontal: 20),
+                itemCount: concepts.length,
+                itemBuilder: (context, index) {
+                  final concept = concepts[index];
+                  double mastery = child.masteryScores[concept.id] ?? 0.0;
+                  
+                  // Logic to unlock: First node is always open, others depend on previous mastery
+                  bool isLocked = index > 0 && (child.masteryScores[concepts[index - 1].id] ?? 0.0) < 0.5;
+
+                  return _buildWindingNode(context, concept, index, mastery, isLocked, ai);
+                },
+              );
+            },
           ),
-          const SizedBox(height: 5),
-          _buildNodeLabel(concept.name, isUnlocked),
+          
+          // 3. TOP NAVIGATION OVERLAY
+          _buildTopOverlay(context),
         ],
       ),
     );
   }
 
-  Widget _buildCurrentPlayerMarker() {
-    return AnimatedBuilder(
-      animation: _floatController,
-      builder: (context, child) {
-        return Transform.translate(
-          offset: Offset(0, -10 + (math.sin(_floatController.value * 2 * math.pi) * 8)),
-          child: Container(
-            padding: const EdgeInsets.all(3),
-            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-            child: CircleAvatar(radius: 20, backgroundImage: AssetImage(widget.child.avatarUrl)),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildBubble(int index, bool isUnlocked, bool isCurrent) {
-    Color color = [AppColors.childPink, AppColors.childOrange, AppColors.childGreen, AppColors.childBlue][index % 4];
-    return ScaleTransition(
-      scale: isCurrent ? Tween(begin: 1.0, end: 1.1).animate(_pulseController) : const AlwaysStoppedAnimation(1.0),
-      child: Container(
-        width: 80, height: 80,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle, color: Colors.white,
-          boxShadow: [BoxShadow(color: isCurrent ? color.withAlpha(150) : Colors.black26, blurRadius: 15)],
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(5.0),
-          child: CircleAvatar(
-            backgroundColor: isUnlocked ? color : Colors.grey.shade400,
-            child: Icon(isUnlocked ? (isCurrent ? Icons.play_arrow : Icons.check) : Icons.lock, color: Colors.white, size: 40),
-          ),
+  Widget _buildTopOverlay(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(15.0),
+        child: Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                SoundService.playSFX('pop.mp3');
+                Navigator.pop(context);
+              },
+              child: Container(
+                padding: const EdgeInsets.all(10),
+                decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+                child: const Icon(Icons.arrow_back, color: AppColors.childNavy),
+              ),
+            ),
+            const SizedBox(width: 15),
+            // Header for Category Name
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.4),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white24),
+              ),
+              child: Text(
+                category.toUpperCase(),
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, letterSpacing: 2, fontSize: 16),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildNodeLabel(String name, bool isUnlocked) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(15), border: Border.all(color: AppColors.lavender)),
-      child: Text(name, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: isUnlocked ? AppColors.textDark : Colors.grey)),
+  Widget _buildWindingNode(BuildContext context, Concept concept, int index, double mastery, bool isLocked, AIEngine ai) {
+    // --- PATH ALIGNMENT LOGIC ---
+    // This creates the "S" curve movement to match your map image road
+    double horizontalOffset;
+    int cycle = index % 4;
+    if (cycle == 0) horizontalOffset = -0.6; // Left
+    else if (cycle == 1) horizontalOffset = 0.0; // Center
+    else if (cycle == 2) horizontalOffset = 0.6; // Right
+    else horizontalOffset = 0.0; // Center again
+
+    return Align(
+      alignment: Alignment(horizontalOffset, 0),
+      child: FadeInDown(
+        delay: Duration(milliseconds: index * 100),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Column(
+            children: [
+              GestureDetector(
+                onTap: isLocked ? null : () async {
+                  SoundService.playSFX('pop.mp3');
+                  Activity? activity = await ai.getPersonalizedActivity(child, concept.id);
+                  if (activity != null && context.mounted) {
+                    Navigator.push(context, MaterialPageRoute(
+                      builder: (c) => GameContainer(child: child, concept: concept, activity: activity)
+                    ));
+                  }
+                },
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    // Node Glow/Background
+                    Container(
+                      width: 90, height: 90,
+                      decoration: BoxDecoration(
+                        color: isLocked ? Colors.black45 : Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: isLocked ? Colors.transparent : AppColors.childBlue.withOpacity(0.5),
+                            blurRadius: 20,
+                            spreadRadius: 2
+                          )
+                        ],
+                      ),
+                      child: Center(
+                        child: Icon(
+                          isLocked ? Icons.lock_outline : (mastery >= 0.8 ? Icons.star_rounded : Icons.play_arrow_rounded),
+                          size: 45,
+                          color: isLocked ? Colors.white38 : (mastery >= 0.8 ? Colors.amber : AppColors.childBlue),
+                        ),
+                      ),
+                    ),
+                    // Progress Indicator
+                    if (!isLocked)
+                      SizedBox(
+                        width: 105, height: 105,
+                        child: CircularProgressIndicator(
+                          value: mastery,
+                          strokeWidth: 8,
+                          backgroundColor: Colors.white24,
+                          valueColor: AlwaysStoppedAnimation<Color>(mastery >= 0.8 ? Colors.amber : AppColors.childYellow),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              // TEXT STYLING: Shadowed for Forest readability
+              Text(
+                concept.name,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  shadows: [
+                    Shadow(offset: Offset(2, 2), blurRadius: 4.0, color: Colors.black87),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
-}
-
-// --- GAME DEVELOPER LOGIC: THE DASHED ROAD ---
-class AdventurePathPainter extends CustomPainter {
-  final int nodes;
-  final double mapHeight;
-  AdventurePathPainter(this.nodes, this.mapHeight);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.white.withAlpha(120)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 30
-      ..strokeCap = StrokeCap.round;
-
-    final path = Path();
-    double centerX = size.width / 2;
-
-    for (double i = 0; i <= nodes; i += 0.05) {
-      double x = centerX + (math.sin(i * 1.2) * (size.width * 0.28)) + 40;
-      double y = mapHeight - (i * 180.0) - 210;
-      if (i == 0) path.moveTo(x, y); else path.lineTo(x, y);
-    }
-
-    // Draw the main thick "dirt road"
-    canvas.drawPath(path, paint);
-    
-    // Draw the "Dashed center line" for the road
-    final dashPaint = Paint()
-      ..color = Colors.white.withAlpha(200)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-      
-    canvas.drawPath(path, dashPaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

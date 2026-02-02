@@ -5,50 +5,42 @@ import 'database_service.dart';
 class AIEngine {
   final _db = DatabaseService();
 
+  // The Ladder: If Tracing (Hard) is too tough, move to Matching (Medium), then Audio (Easy)
+  final List<String> _ladder = ['Tracing', 'Matching', 'AudioQuest'];
+
   Future<Activity?> getPersonalizedActivity(ChildProfile child, String conceptId) async {
-    // 1. Fetch available activities for this concept
-    List<Activity> allActivities = await _db.streamActivitiesForConcept(conceptId).first;
+    // 1. Get all activities available for this concept from Firebase
+    List<Activity> all = await _db.streamActivitiesForConcept(conceptId).first;
     
-    // Filter by child's language
-    List<Activity> localized = allActivities.where((a) => a.language == child.language).toList();
-    
-    if (localized.isEmpty) {
-      print("AI DEBUG: No activities found for ${child.language}");
-      return null;
-    }
+    // 2. Filter by the child's language
+    List<Activity> localized = all.where((a) => a.language == child.language).toList();
+    if (localized.isEmpty) return null;
 
-    double currentMastery = child.masteryScores[conceptId] ?? 0.0;
-    String currentPreference = child.preferredMode;
+    double mastery = child.masteryScores[conceptId] ?? 0.0;
+    String currentMode = child.preferredMode;
 
-    print("AI DEBUG: Child ${child.name} has Mastery: $currentMastery. Preferred Mode: $currentPreference");
-
-    // 2. REDIRECTION LOGIC (The "Child 2" Logic)
-    // If Mastery is low, we MUST find something different from the current preference
-    if (currentMastery < 0.3 && localized.length > 1) {
-      print("AI DEBUG: Mastery too low! Attempting Redirection...");
+    // 3. AI LOGIC: If mastery is very low (< 30%), the current mode is too hard.
+    if (mastery < 0.3 && localized.length > 1) {
+      int idx = _ladder.indexOf(currentMode);
+      
+      // Step down the ladder to an easier mode
+      String nextMode = (idx < _ladder.length - 1) ? _ladder[idx + 1] : _ladder[0];
 
       try {
-        // Find an activity where the mode is NOT the one they are currently failing
-        Activity alternative = localized.firstWhere(
-          (a) => a.activityMode.toLowerCase() != currentPreference.toLowerCase()
-        );
-
-        print("AI DEBUG: REDIRECTION SUCCESS! Switching to ${alternative.activityMode}");
-        
-        // Update the database so the AI remembers this new preference
+        Activity alternative = localized.firstWhere((a) => a.activityMode == nextMode);
+        // Automatically update child's preferred mode in DB for next time
         await _db.updatePreferredMode(child.id, alternative.activityMode);
-        
         return alternative;
       } catch (e) {
-        print("AI DEBUG: No alternative mode found in DB. Staying in $currentPreference");
+        // Fallback to whatever is available
+        return localized.first;
       }
     }
 
-    // 3. STABILITY LOGIC (The "Child 1" Logic)
-    // Try to give the child their preferred mode if they are doing okay
+    // 4. Default: Return the activity that matches their preferred mode
     return localized.firstWhere(
-      (a) => a.activityMode.toLowerCase() == currentPreference.toLowerCase(),
-      orElse: () => localized.first,
+      (a) => a.activityMode == currentMode, 
+      orElse: () => localized.first
     );
   }
 }

@@ -22,10 +22,13 @@ dependencies:
   # --- AI & Media ---
   flutter_tts: ^4.0.2        
   lottie: ^3.1.0             
+  audioplayers: ^6.0.0       # ADDED: For background music/SFX
   
   # --- UI & Charts ---
   google_fonts: ^6.2.1       
   fl_chart: ^0.68.0          
+  animate_do: ^3.3.4         # ADDED: For bouncy kid-friendly animations
+  confetti: ^0.7.0           # ADDED: For game completion celebrations
 
   # --- Utility ---
   cupertino_icons: ^1.0.8
@@ -42,14 +45,12 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
 
-# --- THE MISSING SECTION STARTS HERE ---
-# Make sure the word "flutter:" is not indented (starts at the very left)
 flutter:
   uses-material-design: true
 
-  # Register your asset folders here
-  # If you don't list them here, Flutter won't show your images or animations
   assets:
     - assets/images/
-    - assets/images/buddies/
-    - assets/animations/
+    - assets/icons/profiles/
+    - assets/icons/category/
+    - assets/sounds/         # ADDED: Create this folder for music/beeps
+    - assets/animations/     # ADDED: For Lottie files

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math' as math; // Required for floating math
 import '../../models/child_model.dart';
 import '../../services/database_service.dart';
 import '../../utils/app_colors.dart';
@@ -12,49 +13,75 @@ class ProfileWizardScreen extends StatefulWidget {
   State<ProfileWizardScreen> createState() => _ProfileWizardScreenState();
 }
 
-class _ProfileWizardScreenState extends State<ProfileWizardScreen> {
+class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentStep = 0; 
   final _db = DatabaseService();
+  
+  // Animation for the floating bird mascot
+  late AnimationController _mascotController;
 
+  // --- DATA STATE ---
   final _nameController = TextEditingController();
-  int _selectedAge = 3;
+  String _selectedClass = 'Pre-School';
   String _selectedLanguage = 'English';
-  
-  // Badge Identity
-  String _selectedEmoji = "⭐";
-  Color _selectedColor = AppColors.childBlue;
-  
-  final List<String> _emojis = ["⭐", "🚀", "🎨", "⚽", "🦄", "🌈", "🍦", "🦁"];
-  final List<Color> _colors = [AppColors.childBlue, AppColors.childPink, AppColors.childOrange, AppColors.childGreen, Colors.purpleAccent];
+  String _selectedIcon = 'assets/icons/profiles/p1.png';
 
-  // AI Buddy Registry
-  int _selectedBuddyIndex = 0;
-  final List<Map<String, String>> _buddies = [
-    {'id': 'buddy_robo', 'name': 'Robo-B1', 'asset': 'assets/images/buddies/robo.png', 'tone': 'Logical'},
-    {'id': 'buddy_girl', 'name': 'Eva', 'asset': 'assets/images/buddies/girl.png', 'tone': 'Curious'},
-    {'id': 'buddy_boy', 'name': 'Sam', 'asset': 'assets/images/buddies/boy.png', 'tone': 'Energetic'},
-    {'id': 'buddy_cat', 'name': 'Smarty Cat', 'asset': 'assets/images/buddies/cat.png', 'tone': 'Helpful'},
-    {'id': 'buddy_lion', 'name': 'Leo', 'asset': 'assets/images/buddies/lion.png', 'tone': 'Brave'},
+  final List<String> _profileIcons = [
+    'assets/icons/profiles/p1.png',
+    'assets/icons/profiles/p2.png',
+    'assets/icons/profiles/p3.png',
+    'assets/icons/profiles/p4.png',
+    'assets/icons/profiles/p5.png',
+    'assets/icons/profiles/p6.png',
+    'assets/icons/profiles/p7.png',
+    'assets/icons/profiles/p8.png',
+    'assets/icons/profiles/p9.png',
+    'assets/icons/profiles/p10.png',
+  ];
+
+  // Specific Palette from your "Select your Class" image
+  final List<Map<String, dynamic>> _classes = [
+    {'name': 'Pre-School', 'color': const Color(0xFF9173FF), 'icon': Icons.school_rounded},
+    {'name': 'Class 1', 'color': const Color(0xFFFF6B9D), 'val': '1'},
+    {'name': 'Class 2', 'color': const Color(0xFF7ED957), 'val': '2'},
+    {'name': 'Class 3', 'color': const Color(0xFFFFBD59), 'val': '3'},
+    {'name': 'Class 4', 'color': const Color(0xFF4FAAFD), 'val': '4'},
+    {'name': 'Class 5', 'color': const Color(0xFF38B6FF), 'val': '5'},
+    {'name': 'No School', 'color': const Color(0xFFFF914D), 'icon': Icons.star_rounded},
   ];
 
   @override
   void initState() {
     super.initState();
+    // Setup smooth floating animation (2 seconds up and down)
+    _mascotController = AnimationController(
+      duration: const Duration(seconds: 2), 
+      vsync: this
+    )..repeat(reverse: true);
+
     if (widget.existingChild != null) {
       _nameController.text = widget.existingChild!.name;
-      _selectedAge = widget.existingChild!.age;
+      _selectedClass = widget.existingChild!.childClass;
       _selectedLanguage = widget.existingChild!.language;
-      _selectedEmoji = widget.existingChild!.toMap()['profileEmoji'] ?? "⭐";
-      _selectedColor = Color(int.parse(widget.existingChild!.toMap()['profileColor'] ?? "0xFF80B3FF"));
-      _selectedBuddyIndex = _buddies.indexWhere((b) => b['id'] == widget.existingChild!.buddyType);
-      if (_selectedBuddyIndex == -1) _selectedBuddyIndex = 0;
+      _selectedIcon = widget.existingChild!.avatarUrl;
     }
+  }
+
+  @override
+  void dispose() {
+    _mascotController.dispose();
+    _nameController.dispose();
+    _pageController.dispose();
+    super.dispose();
   }
 
   void _onNext() {
     if (_currentStep < 3) {
-      _pageController.nextPage(duration: const Duration(milliseconds: 400), curve: Curves.easeInOut);
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 500), 
+        curve: Curves.fastOutSlowIn
+      );
       setState(() => _currentStep++);
     } else {
       _save();
@@ -67,16 +94,21 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> {
 
     Map<String, dynamic> data = {
       'name': _nameController.text.trim(),
-      'age': _selectedAge,
+      'childClass': _selectedClass,
       'language': _selectedLanguage,
-      'buddyType': _buddies[_selectedBuddyIndex]['id'],
-      'avatarUrl': _buddies[_selectedBuddyIndex]['asset'], 
-      'profileEmoji': _selectedEmoji,
-      'profileColor': '0x${_selectedColor.value.toRadixString(16).toUpperCase()}',
+      'avatarUrl': _selectedIcon, 
+      'buddyType': 'BirdBuddy',
+      'age': 3,
     };
 
     if (widget.existingChild == null) {
-      data.addAll({'preferredMode': 'Tracing', 'totalStars': 0, 'masteryScores': {}, 'createdAt': DateTime.now(), 'dailyLimit': 30});
+      data.addAll({
+        'preferredMode': 'Tracing', 
+        'totalStars': 0, 
+        'masteryScores': {}, 
+        'createdAt': DateTime.now(), 
+        'dailyLimit': 30
+      });
       await _db.updateChildProfile(user.uid, "new", data);
     } else {
       await _db.updateChildProfile(user.uid, widget.existingChild!.id, data);
@@ -87,61 +119,223 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(elevation: 0, backgroundColor: Colors.white, title: _buildStepper(), centerTitle: true),
-      body: Column(
+      backgroundColor: const Color(0xFFFDFDFF), // Clean slight-off-white
+      body: Stack(
         children: [
-          Expanded(child: PageView(controller: _pageController, physics: const NeverScrollableScrollPhysics(), children: [_stepInfo(), _stepBadge(), _stepBuddy(), _stepLang()])),
-          _buildFooterButton(),
+          // --- THE AI BUDDY (JUST THE BIRD, NO BACKGROUND) ---
+          Positioned(
+            bottom: -10,
+            right: -20,
+            child: AnimatedBuilder(
+              animation: _mascotController,
+              builder: (context, child) {
+                return Transform.translate(
+                  // Vertical floating math
+                  offset: Offset(0, 15 * math.sin(_mascotController.value * math.pi)),
+                  child: Image.asset(
+                    'assets/images/buddy.png', 
+                    height: 250, 
+                    fit: BoxFit.contain, // Ensures no clipping
+                  ),
+                );
+              },
+            ),
+          ),
+
+          SafeArea(
+            child: Column(
+              children: [
+                _buildHeaderStepper(),
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    physics: const NeverScrollableScrollPhysics(),
+                    children: [
+                      _stepName(),
+                      _stepClassGrid(),
+                      _stepBadgePicker(),
+                      _stepLanguage(),
+                    ],
+                  ),
+                ),
+                _buildFooter(),
+              ],
+            ),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStepper() => Row(mainAxisSize: MainAxisSize.min, children: List.generate(4, (i) => Row(children: [
-    CircleAvatar(radius: 12, backgroundColor: i < _currentStep ? AppColors.teal : (i == _currentStep ? AppColors.oceanBlue : Colors.grey.shade300), child: i < _currentStep ? const Icon(Icons.check, size: 14, color: Colors.white) : Text("${i+1}", style: const TextStyle(fontSize: 10, color: Colors.white))),
-    if (i < 3) Container(width: 20, height: 2, color: AppColors.lavender)
-  ])));
+  Widget _buildHeaderStepper() {
+    return Padding(
+      padding: const EdgeInsets.all(25),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: List.generate(4, (i) => Row(children: [
+          Container(
+            width: 32, height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: i < _currentStep ? AppColors.teal : (i == _currentStep ? AppColors.ultraViolet : Colors.white),
+              border: Border.all(color: i <= _currentStep ? Colors.transparent : Colors.grey.shade300),
+            ),
+            child: Center(
+              child: i < _currentStep 
+                ? const Icon(Icons.check, size: 18, color: Colors.white) 
+                : Text("${i + 1}", style: TextStyle(color: i == _currentStep ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
+            ),
+          ),
+          if (i < 3) Container(width: 30, height: 3, color: i < _currentStep ? AppColors.teal : Colors.grey.shade200),
+        ])),
+      ),
+    );
+  }
 
-  Widget _stepInfo() => Container(color: AppColors.childBlue.withAlpha(20), padding: const EdgeInsets.all(30), child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-    const Text("What is your name?", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.oceanBlue)),
-    const SizedBox(height: 40),
-    TextField(controller: _nameController, textAlign: TextAlign.center, decoration: InputDecoration(hintText: "Enter Name", filled: true, fillColor: Colors.white, border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none))),
-    const SizedBox(height: 30),
-    const Text("How old are you?", style: TextStyle(fontWeight: FontWeight.bold)),
-    const SizedBox(height: 15),
-    Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [2,3,4,5,6,7].map<Widget>((age) => ChoiceChip(label: Text("$age"), selected: _selectedAge == age, onSelected: (v) => setState(() => _selectedAge = age), selectedColor: AppColors.oceanBlue, labelStyle: TextStyle(color: _selectedAge == age ? Colors.white : Colors.black))).toList()),
-  ]));
+  // --- STEP 1: NAME ---
+  Widget _stepName() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 40),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text("Hello! What's your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+        const Text("Name", style: TextStyle(fontSize: 42, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 126, 203, 234))),
+        const SizedBox(height: 40),
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(25),
+            boxShadow: [BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 20, offset: const Offset(0, 10))],
+          ),
+          child: TextField(
+            controller: _nameController,
+            textAlign: TextAlign.center,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.ultraViolet),
+            decoration: InputDecoration(
+              hintText: "Type name here...",
+              filled: true, fillColor: Colors.white,
+              contentPadding: const EdgeInsets.symmetric(vertical: 20),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
 
-  Widget _stepBadge() => Container(color: AppColors.childYellow.withAlpha(30), padding: const EdgeInsets.all(30), child: Column(children: [
-    const Text("Create your Identity Badge!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.oceanBlue)),
-    const SizedBox(height: 30),
-    CircleAvatar(radius: 60, backgroundColor: _selectedColor, child: Text(_selectedEmoji, style: const TextStyle(fontSize: 50))),
-    const SizedBox(height: 30),
-    const Text("Pick an Emoji:"),
-    Wrap(spacing: 10, children: _emojis.map<Widget>((e) => GestureDetector(onTap: () => setState(() => _selectedEmoji = e), child: CircleAvatar(backgroundColor: _selectedEmoji == e ? Colors.white : Colors.transparent, child: Text(e, style: const TextStyle(fontSize: 20))))).toList()),
-    const SizedBox(height: 30),
-    const Text("Pick a Color:"),
-    Wrap(spacing: 15, children: _colors.map<Widget>((c) => GestureDetector(onTap: () => setState(() => _selectedColor = c), child: CircleAvatar(backgroundColor: c, radius: 18, child: _selectedColor == c ? const Icon(Icons.check, color: Colors.white, size: 16) : null))).toList()),
-  ]));
+  // --- STEP 2: CLASS GRID (MATCHING IMAGE) ---
+  Widget _stepClassGrid() => Padding(
+    padding: const EdgeInsets.all(25),
+    child: Column(
+      children: [
+        const Text("Select your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+        const Text("Class", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 143, 211, 243))),
+        const SizedBox(height: 10),
+        const Text("Test your skills and learn new things!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)),
+        const SizedBox(height: 20),
+        Expanded(
+          child: GridView.builder(
+            itemCount: _classes.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2, mainAxisSpacing: 15, crossAxisSpacing: 15, childAspectRatio: 2.1
+            ),
+            itemBuilder: (c, i) {
+              bool isSelected = _selectedClass == _classes[i]['name'];
+              return InkWell(
+                onTap: () => setState(() => _selectedClass = _classes[i]['name']),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: _classes[i]['color'],
+                    borderRadius: BorderRadius.circular(25),
+                    border: isSelected ? Border.all(color: const Color.fromARGB(255, 255, 255, 255), width: 4) : null,
+                    boxShadow: [BoxShadow(color: _classes[i]['color'].withAlpha(120), blurRadius: 10, offset: const Offset(0, 4))],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 15),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(_classes[i]['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
+                        if (_classes[i]['icon'] != null) Icon(_classes[i]['icon'], color: Colors.white)
+                        else Text(_classes[i]['val'], style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        )
+      ],
+    ),
+  );
 
-  Widget _stepBuddy() => Container(color: AppColors.childPink.withAlpha(20), child: Column(children: [
-    const SizedBox(height: 10),
-    const Text("Pick an AI Tutor!", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.oceanBlue)),
-    const Spacer(),
-    Image.asset(_buddies[_selectedBuddyIndex]['asset']!, height: 160),
-    const SizedBox(height: 10),
-    Text(_buddies[_selectedBuddyIndex]['name']!, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-    const Spacer(),
-    SizedBox(height: 80, child: ListView.builder(scrollDirection: Axis.horizontal, padding: const EdgeInsets.symmetric(horizontal: 20), itemCount: _buddies.length, itemBuilder: (context, index) => GestureDetector(onTap: () => setState(() => _selectedBuddyIndex = index), child: Padding(padding: const EdgeInsets.symmetric(horizontal: 10), child: CircleAvatar(radius: 30, backgroundColor: Colors.white, backgroundImage: AssetImage(_buddies[index]['asset']!), child: index == _selectedBuddyIndex ? Container(decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: AppColors.oceanBlue, width: 3))) : null))))),
-    const SizedBox(height: 30),
-  ]));
+  // --- STEP 3: BADGE PICKER ---
+  Widget _stepBadgePicker() => Column(
+    mainAxisAlignment: MainAxisAlignment.center,
+    children: [
+      const Text("Pick your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+      const Text("Badge", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 131, 229, 248))),
+      const SizedBox(height: 30),
+      Wrap(
+        spacing: 20, runSpacing: 20,
+        children: _profileIcons.map<Widget>((path) => GestureDetector(
+          onTap: () => setState(() => _selectedIcon = path),
+          child: AnimatedScale(
+            scale: _selectedIcon == path ? 1.15 : 1.0,
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: _selectedIcon == path ? AppColors.ultraViolet : Colors.white, width: 4),
+                boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 15)],
+              ),
+              child: CircleAvatar(radius: 40, backgroundColor: Colors.white, backgroundImage: AssetImage(path)),
+            ),
+          ),
+        )).toList(),
+      ),
+    ],
+  );
 
-  Widget _stepLang() => Container(color: AppColors.childGreen.withAlpha(20), padding: const EdgeInsets.all(30), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    const Text("Language Settings", style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.oceanBlue)),
-    const SizedBox(height: 40),
-    ...['English', 'Malayalam', 'Hindi', 'Arabic'].map((lang) => Card(margin: const EdgeInsets.only(bottom: 15), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)), elevation: 0, child: RadioListTile(title: Text(lang, style: const TextStyle(fontWeight: FontWeight.bold)), value: lang, groupValue: _selectedLanguage, activeColor: AppColors.oceanBlue, onChanged: (v) => setState(() => _selectedLanguage = v.toString()))))
-  ]));
+  // --- STEP 4: LANGUAGE ---
+  Widget _stepLanguage() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 30),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Text("Choose your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
+        const Text("Language", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.amber)),
+        const SizedBox(height: 30),
+        ...['English', 'Malayalam', 'Hindi', 'Arabic'].map<Widget>((l) => Card(
+          margin: const EdgeInsets.only(bottom: 12),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: _selectedLanguage == l ? AppColors.ultraViolet : Colors.grey.shade200, width: 2)
+          ),
+          color: _selectedLanguage == l ? AppColors.ultraViolet : Colors.white,
+          child: RadioListTile(
+            title: Text(l, style: TextStyle(fontWeight: FontWeight.bold, color: _selectedLanguage == l ? Colors.white : AppColors.textDark)),
+            value: l, groupValue: _selectedLanguage, activeColor: Colors.white,
+            onChanged: (v) => setState(() => _selectedLanguage = v.toString()),
+          ),
+        )),
+      ],
+    ),
+  );
 
-  Widget _buildFooterButton() => Padding(padding: const EdgeInsets.all(25), child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.oceanBlue, minimumSize: const Size(double.infinity, 65), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20))), onPressed: _onNext, child: Text(_currentStep == 3 ? "Finish Setup" : "Continue", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))));
+  Widget _buildFooter() => Padding(
+    padding: const EdgeInsets.all(30),
+    child: ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.ultraViolet,
+        minimumSize: const Size(double.infinity, 65),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        elevation: 8,
+      ),
+      onPressed: _onNext,
+      child: Text(_currentStep == 3 ? "Let's Play!" : "Continue", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+    ),
+  );
 }

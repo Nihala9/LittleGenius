@@ -9,15 +9,25 @@ import 'concept_manager.dart';
 class AdminCategoryScreen extends StatelessWidget {
   const AdminCategoryScreen({super.key});
 
-  // --- CRUD: SHOW DIALOG FOR ADD/EDIT ---
+  // --- CRUD: SHOW DIALOG WITH IMAGE PICKER ---
   void _showCategoryDialog(BuildContext context, ThemeService theme, {Map<String, dynamic>? existing}) {
     final nameCtrl = TextEditingController(text: existing?['name'] ?? "");
-    int selectedIconCode = existing?['iconCode'] ?? Icons.folder_rounded.codePoint;
+    final orderCtrl = TextEditingController(text: existing?['order']?.toString() ?? "1");
     
-    final List<IconData> availableIcons = [
-      Icons.abc_rounded, Icons.numbers_rounded, Icons.pets_rounded, 
-      Icons.category_rounded, Icons.palette_rounded, Icons.star_rounded,
-      Icons.directions_car_rounded, Icons.music_note_rounded
+    // IMAGE SELECTION LOGIC
+    String selectedImagePath = existing?['imagePath'] ?? 'assets/icons/category/c1.png';
+    
+    // Predefined local assets provided by you
+    final List<String> availableImages = [
+      'assets/icons/category/c1.png',
+      'assets/icons/category/c2.png',
+      'assets/icons/category/c3.png',
+      'assets/icons/category/c4.png',
+      'assets/icons/category/c5.png',
+      'assets/icons/category/c6.png',
+      'assets/icons/category/c7.png',
+      'assets/icons/category/c8.png',
+      'assets/icons/category/c9.png',
     ];
 
     final db = DatabaseService();
@@ -29,32 +39,63 @@ class AdminCategoryScreen extends StatelessWidget {
           backgroundColor: theme.cardColor,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(
-            existing == null ? "New Category" : "Edit Category", 
+            existing == null ? "Create New Category" : "Edit Category", 
             style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold)
           ),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                const Text("Define the folder name, sequence, and pick a fun icon.", 
+                  style: TextStyle(fontSize: 11, color: Colors.grey)),
+                const SizedBox(height: 20),
+                
+                // 1. NAME INPUT
                 TextField(
                   controller: nameCtrl, 
                   style: TextStyle(color: theme.textColor),
-                  decoration: const InputDecoration(labelText: "Category Name", border: OutlineInputBorder()),
+                  decoration: const InputDecoration(labelText: "Name", border: OutlineInputBorder()),
                 ),
+                const SizedBox(height: 15),
+                
+                // 2. ORDER INPUT
+                TextField(
+                  controller: orderCtrl, 
+                  keyboardType: TextInputType.number,
+                  style: TextStyle(color: theme.textColor),
+                  decoration: const InputDecoration(labelText: "Map Order (1, 2, 3...)", border: OutlineInputBorder()),
+                ),
+                
                 const SizedBox(height: 20),
-                const Text("Visual Icon", style: TextStyle(fontSize: 12, color: Colors.grey)),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: availableIcons.map((icon) => GestureDetector(
-                    onTap: () => setDialogState(() => selectedIconCode = icon.codePoint),
-                    child: CircleAvatar(
-                      backgroundColor: selectedIconCode == icon.codePoint ? AppColors.oceanBlue : theme.borderColor,
-                      radius: 20,
-                      child: Icon(icon, color: selectedIconCode == icon.codePoint ? Colors.white : theme.textColor, size: 20),
-                    ),
-                  )).toList(),
+                const Text("Select Category Icon", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 15),
+
+                // 3. IMAGE PICKER GRID
+                SizedBox(
+                  height: 120,
+                  width: double.maxFinite,
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3, mainAxisSpacing: 10, crossAxisSpacing: 10),
+                    itemCount: availableImages.length,
+                    itemBuilder: (context, index) {
+                      bool isSelected = selectedImagePath == availableImages[index];
+                      return GestureDetector(
+                        onTap: () => setDialogState(() => selectedImagePath = availableImages[index]),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected ? AppColors.oceanBlue.withAlpha(40) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(15),
+                            border: Border.all(
+                              color: isSelected ? AppColors.oceanBlue : Colors.grey.shade300, 
+                              width: isSelected ? 3 : 1
+                            ),
+                          ),
+                          child: Image.asset(availableImages[index]),
+                        ),
+                      );
+                    },
+                  ),
                 ),
               ],
             ),
@@ -67,7 +108,8 @@ class AdminCategoryScreen extends StatelessWidget {
                 if (nameCtrl.text.isEmpty) return;
                 final data = {
                   'name': nameCtrl.text.trim(),
-                  'iconCode': selectedIconCode,
+                  'order': int.tryParse(orderCtrl.text) ?? 1,
+                  'imagePath': selectedImagePath, // Store the local path string
                 };
                 existing == null ? await db.addCategory(data) : await db.updateCategory(existing['id'], data);
                 if (context.mounted) Navigator.pop(ctx);
@@ -85,7 +127,7 @@ class AdminCategoryScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text("Delete Category?"),
-        content: Text("Are you sure you want to delete '$name'?"),
+        content: Text("Delete '$name'?"),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
@@ -119,39 +161,50 @@ class AdminCategoryScreen extends StatelessWidget {
               
               final list = snapshot.data ?? [];
 
+              if (list.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.map_rounded, size: 80, color: theme.subTextColor),
+                      const SizedBox(height: 20),
+                      const Text("No categories found."),
+                    ],
+                  ),
+                );
+              }
+
               return ListView.builder(
                 padding: const EdgeInsets.fromLTRB(20, 10, 20, 100),
                 itemCount: list.length,
                 itemBuilder: (context, i) {
                   final cat = list[i];
-                  String firstLetter = cat['name'] != null && cat['name'].isNotEmpty 
-                      ? cat['name'][0].toUpperCase() : "?";
+                  String imgPath = cat['imagePath'] ?? 'assets/icons/category/c1.png';
 
                   return Card(
                     color: theme.cardColor,
                     margin: const EdgeInsets.only(bottom: 15),
-                    elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20), 
                       side: BorderSide(color: theme.borderColor)
                     ),
                     child: ListTile(
                       contentPadding: const EdgeInsets.all(15),
-                      // ALPHABETICAL BADGE: Shows the first letter
-                      leading: CircleAvatar(
-                        backgroundColor: AppColors.oceanBlue,
-                        child: Text(firstLetter, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      // PREVIEW OF THE SELECTED CATEGORY IMAGE
+                      leading: Container(
+                        width: 50, height: 50,
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(color: AppColors.cloudySky.withAlpha(50), shape: BoxShape.circle),
+                        child: Image.asset(imgPath),
                       ),
                       title: Text(cat['name'], 
                         style: TextStyle(color: theme.textColor, fontWeight: FontWeight.bold, fontSize: 18)),
-                      subtitle: const Text("Learning Folder", style: TextStyle(color: AppColors.teal, fontSize: 11)),
+                      subtitle: Text("Level Order: ${cat['order']}"),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(icon: const Icon(Icons.edit_outlined, size: 20), 
-                            onPressed: () => _showCategoryDialog(context, theme, existing: cat)),
-                          IconButton(icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20), 
-                            onPressed: () => _confirmDelete(context, cat['id'], cat['name'])),
+                          IconButton(icon: const Icon(Icons.edit_note_rounded), onPressed: () => _showCategoryDialog(context, theme, existing: cat)),
+                          IconButton(icon: const Icon(Icons.delete_outline), onPressed: () => _confirmDelete(context, cat['id'], cat['name'])),
                         ],
                       ),
                       onTap: () => Navigator.push(context, MaterialPageRoute(
@@ -168,7 +221,7 @@ class AdminCategoryScreen extends StatelessWidget {
             child: FloatingActionButton.extended(
               onPressed: () => _showCategoryDialog(context, theme),
               backgroundColor: AppColors.oceanBlue,
-              icon: const Icon(Icons.add, color: Colors.white),
+              icon: const Icon(Icons.add_to_photos_rounded, color: Colors.white),
               label: const Text("New Category", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           )

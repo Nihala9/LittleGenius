@@ -13,6 +13,11 @@ class DatabaseService {
         .snapshots().map((l) => l.docs.map((d) => ChildProfile.fromMap(d.data(), d.id)).toList());
   }
 
+  Stream<ChildProfile> streamSingleChild(String parentId, String childId) {
+    return _db.collection('parents').doc(parentId).collection('profiles').doc(childId)
+        .snapshots().map((doc) => ChildProfile.fromMap(doc.data()!, doc.id));
+  }
+
   Future<ChildProfile> getLatestChildProfile(String parentId, String childId) async {
     var doc = await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).get();
     return ChildProfile.fromMap(doc.data()!, doc.id);
@@ -28,6 +33,19 @@ class DatabaseService {
 
   Future<void> deleteChildProfile(String parentId, String childId) async {
     await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).delete();
+  }
+
+  // --- REWARD LOGIC ---
+  Future<void> unlockBadge(String parentId, String childId, String badgeId) async {
+    await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).update({
+      'badges': FieldValue.arrayUnion([badgeId])
+    });
+  }
+
+  Future<void> addStars(String parentId, String childId, int count) async {
+    await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).update({
+      'totalStars': FieldValue.increment(count)
+    });
   }
 
   // --- AI PERFORMANCE LOGIC ---
@@ -46,7 +64,7 @@ class DatabaseService {
   // --- ADMIN CONTENT: CATEGORY CRUD ---
   Stream<List<Map<String, dynamic>>> streamCategories() {
     return _db.collection('categories')
-        .orderBy('name') // Alphabetical A-Z
+        .orderBy('order') 
         .snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
   }
@@ -58,17 +76,17 @@ class DatabaseService {
   // --- ADMIN CONTENT: CONCEPT CRUD ---
   Future<void> addConcept(Concept c) async => await _db.collection('concepts').add(c.toMap());
   
-  // UPDATED: Now sorts by Name (A-Z) instead of Order
   Stream<List<Concept>> streamConcepts() {
-    return _db.collection('concepts').orderBy('name').snapshots()
+    return _db.collection('concepts')
+        .orderBy('order') 
+        .snapshots()
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
-  // UPDATED: Filtered concepts also sort by Name (A-Z)
   Stream<List<Concept>> streamConceptsByCategory(String category) {
     return _db.collection('concepts')
         .where('category', isEqualTo: category)
-        .orderBy('name') // Alphabetical sorting for lessons
+        .orderBy('order') 
         .snapshots()
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
@@ -100,17 +118,15 @@ class DatabaseService {
     await _db.collection('concepts').doc(id).update({'isPublished': status});
   }
 
-  // UPDATED: Published stream also follows alphabetical order
   Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
     return _db.collection('concepts')
         .where('category', isEqualTo: category)
         .where('isPublished', isEqualTo: true)
-        .orderBy('name') // Sorting A-Z for the child's explorer view
+        .orderBy('order') 
         .snapshots()
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- GLOBAL MONITORING (FOR ADMIN) ---
   Stream<QuerySnapshot> streamAllParents() {
     return _db.collection('users').where('role', isEqualTo: 'parent').snapshots();
   }
@@ -120,7 +136,6 @@ class DatabaseService {
         l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- AI CONFIG & ANALYTICS ---
   Future<void> updateAIConfig(Map<String, dynamic> config) async {
     await _db.collection('settings').doc('ai_config').set(config, SetOptions(merge: true));
   }
