@@ -1,18 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:lottie/lottie.dart';
 import '../../models/child_model.dart';
 import '../../models/concept_model.dart';
 import '../../models/activity_model.dart';
 import '../../services/voice_service.dart';
 import '../../services/ai_service.dart';
 import '../../services/database_service.dart';
-import '../../widgets/interactive_buddy.dart'; // Import interactive buddy
+import '../../services/sound_service.dart';
+import '../../utils/app_colors.dart';
+import '../../widgets/interactive_buddy.dart';
 
 // Activity Views
 import 'activities/tracing_activity.dart';
 import 'activities/matching_activity.dart';
 import 'activities/audio_quest_activity.dart';
+import 'activities/puzzle_activity.dart';
 
 class GameContainer extends StatefulWidget {
   final ChildProfile child;
@@ -31,13 +35,14 @@ class GameContainer extends StatefulWidget {
 }
 
 class _GameContainerState extends State<GameContainer> {
-  final VoiceService _voice = VoiceService();
-  final AIService _aiLogic = AIService();
-  final DatabaseService _db = DatabaseService();
+  final _voice = VoiceService();
+  final _aiLogic = AIService();
+  final _db = DatabaseService();
   late ConfettiController _confettiController;
   
   late Activity _currentActivity;
-  int _attempts = 0;
+  int _localAttempts = 0;
+  int _adminLimit = 2; 
   bool _isCelebrating = false;
 
   @override
@@ -45,7 +50,13 @@ class _GameContainerState extends State<GameContainer> {
     super.initState();
     _currentActivity = widget.activity;
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+    _loadAIConfig();
     _startActivity();
+  }
+
+  void _loadAIConfig() async {
+    final config = await _db.getAIConfig();
+    if (mounted) setState(() => _adminLimit = config['redirectionLimit'] ?? 2);
   }
 
   @override
@@ -55,77 +66,145 @@ class _GameContainerState extends State<GameContainer> {
   }
 
   void _startActivity() async {
-    String intro = "Let's learn ${widget.concept.name}!";
-    await _voice.speak(intro, widget.child.language);
+    // Buddy explains the new task
+    String msg = "Let's try ${_currentActivity.activityMode} mode with ${widget.concept.name}!";
+    await _voice.speak(msg, widget.child.language);
   }
 
+  // --- CORE LOGIC: SUCCESS OR FAIL ---
   void _onActivityComplete(bool isCorrect) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     if (isCorrect) {
-      double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
-      double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
-      
-      await _db.updateMastery(user.uid, widget.child.id, widget.concept.id, newMastery);
-      await _db.addStars(user.uid, widget.child.id, 10);
-
-      if (newMastery >= 0.8 && !widget.child.badges.contains(widget.concept.category)) {
-        await _db.unlockBadge(user.uid, widget.child.id, widget.concept.category);
-      }
-
-      _showCelebration();
+      await SoundService.playSFX('success.mp3');
+      await Future.delayed(const Duration(milliseconds: 500));
+      _handleSuccess(user.uid);
     } else {
-      setState(() => _attempts++);
-      if (_attempts >= 3) _handleRedirection();
-      else await _voice.speak("Try one more time!", widget.child.language);
+      await SoundService.playSFX('wrong.mp3');
+      await Future.delayed(const Duration(milliseconds: 500));
+      _localAttempts++;
+      
+      if (_localAttempts >= _adminLimit) {
+        // TRIGGER AI REDIRECTION
+        _showRedirectionDialog();
+      } else {
+        // TRIGGER RETRY
+        _showRetryDialog();
+      }
     }
   }
 
-  void _handleRedirection() async {
+  void _handleSuccess(String uid) async {
+    double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
+    double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
+    
+    await _db.updateMastery(uid, widget.child.id, widget.concept.id, newMastery);
+    await _db.addStars(uid, widget.child.id, 10);
+
+    setState(() => _isCelebrating = true);
+    _confettiController.play();
+    await _voice.speak("Superstar! You are so smart!", widget.child.language);
+
+    _showPopDialog(
+      title: "AMAZING!",
+      message: "You learned ${widget.concept.name}!",
+      buttonText: "Finish Level",
+      lottieAsset: 'assets/animations/trophy.json',
+      iconColor: Colors.amber,
+      onPressed: () {
+        Navigator.pop(context); // Close Dialog
+        Navigator.pop(context); // Go back to Map
+      }, 
+    );
+  }
+
+  void _showRetryDialog() {
+    _voice.speak("Don't worry! Let's try one more time.", widget.child.language);
+
+    _showPopDialog(
+      title: "OOPS!",
+      message: "Keep trying! You can do it!",
+      buttonText: "Try Again",
+      icon: Icons.refresh_rounded,
+      iconColor: AppColors.childOrange,
+      onPressed: () {
+        Navigator.pop(context); // Close dialog
+        setState(() {}); // Re-builds current activity
+      },
+    );
+  }
+
+  void _showRedirectionDialog() async {
+    // Get a redirection plan from AI
     final plan = _aiLogic.getRedirectionPlan(_currentActivity.activityMode, 0.2);
     await _voice.speak(plan['message'], widget.child.language);
 
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            InteractiveBuddy(height: 120, language: widget.child.language),
-            const SizedBox(height: 20),
-            Text(plan['message'], textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-          ],
-        ),
-        actions: [
-          Center(
-            child: ElevatedButton(
-              onPressed: () { Navigator.pop(c); _switchActivityMode(plan['nextMode']); },
-              child: const Text("Okay!"),
-            ),
-          )
-        ],
-      ),
+    _showPopDialog(
+      title: "TRY THIS!",
+      message: plan['message'],
+      buttonText: "Let's Go!",
+      icon: Icons.auto_awesome_rounded,
+      iconColor: AppColors.teal,
+      onPressed: () {
+        Navigator.pop(context); // Close Dialog
+        _switchActivityMode(plan['nextMode']); // Switch Mode Immediately
+      },
     );
   }
 
   void _switchActivityMode(String newMode) {
     setState(() {
-      _attempts = 0;
-      _currentActivity = Activity(id: 'temp', conceptId: widget.concept.id, title: "", activityMode: newMode, language: widget.child.language, difficulty: 1);
+      _localAttempts = 0; // Reset counter for the new mode
+      _currentActivity = Activity(
+        id: 'temp_${DateTime.now().millisecondsSinceEpoch}', // Unique ID
+        conceptId: widget.concept.id, 
+        title: "", 
+        activityMode: newMode, 
+        language: widget.child.language, 
+        difficulty: 1
+      );
     });
     _startActivity();
   }
 
-  void _showCelebration() async {
-    setState(() => _isCelebrating = true);
-    _confettiController.play();
-    await _voice.speak("Superstar!", widget.child.language);
-    await Future.delayed(const Duration(seconds: 3));
-    if (mounted) Navigator.pop(context);
+  // --- REUSABLE POPUP ---
+  void _showPopDialog({
+    required String title, 
+    required String message, 
+    required String buttonText, 
+    IconData? icon, 
+    String? lottieAsset, 
+    required Color iconColor, 
+    required VoidCallback onPressed
+  }) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (c) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            if (lottieAsset != null) 
+              Lottie.asset(lottieAsset, height: 150) 
+            else 
+              Icon(icon, size: 80, color: iconColor),
+            const SizedBox(height: 20),
+            Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.childNavy)),
+            const SizedBox(height: 10),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.blueGrey)),
+            const SizedBox(height: 30),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: iconColor, minimumSize: const Size(200, 60), shape: const StadiumBorder(), elevation: 5),
+              onPressed: onPressed,
+              child: Text(buttonText, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -134,13 +213,38 @@ class _GameContainerState extends State<GameContainer> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          AbsorbPointer(absorbing: _isCelebrating, child: Center(child: _buildGameView())),
-          Align(alignment: Alignment.topCenter, child: ConfettiWidget(confettiController: _confettiController, blastDirectionality: BlastDirectionality.explosive)),
-          
-          // HUD Buddy (Interactive)
-          Positioned(bottom: 20, left: 20, child: InteractiveBuddy(height: 100, language: widget.child.language)),
-          
-          Positioned(top: 50, right: 20, child: IconButton(icon: const Icon(Icons.close, size: 30), onPressed: () => Navigator.pop(context))),
+          // THE GAME VIEW (Wrapped in Key to ensure fresh reset on mode switch)
+          AbsorbPointer(
+            absorbing: _isCelebrating, 
+            child: Center(
+              key: ValueKey(_currentActivity.id), // CRITICAL: Forces reset when mode changes
+              child: _buildGameView()
+            )
+          ),
+
+          Align(
+            alignment: Alignment.topCenter, 
+            child: ConfettiWidget(
+              confettiController: _confettiController, 
+              blastDirectionality: BlastDirectionality.explosive,
+              colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.yellow],
+            )
+          ),
+
+          Positioned(
+            bottom: 20, 
+            left: 20, 
+            child: InteractiveBuddy(height: 100, language: widget.child.language)
+          ),
+
+          Positioned(
+            top: 50, 
+            right: 20, 
+            child: IconButton(
+              icon: const Icon(Icons.close_rounded, size: 35, color: Colors.grey), 
+              onPressed: () => Navigator.pop(context)
+            )
+          ),
         ],
       ),
     );
@@ -151,7 +255,8 @@ class _GameContainerState extends State<GameContainer> {
       case "Tracing": return TracingActivity(targetLetter: widget.concept.name, onComplete: _onActivityComplete);
       case "Matching": return MatchingActivity(concept: widget.concept, onComplete: _onActivityComplete);
       case "AudioQuest": return AudioQuestActivity(concept: widget.concept, language: widget.child.language, onComplete: _onActivityComplete);
-      default: return const Text("Loading...");
+      case "Puzzle": return PuzzleActivity(itemName: widget.concept.name, onComplete: _onActivityComplete);
+      default: return const Center(child: CircularProgressIndicator());
     }
   }
 }

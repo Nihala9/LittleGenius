@@ -142,7 +142,7 @@ class DatabaseService {
 
   Future<Map<String, dynamic>> getAIConfig() async {
     var doc = await _db.collection('settings').doc('ai_config').get();
-    return doc.data() ?? {'pGuess': 0.2, 'pSlip': 0.1, 'masteryThreshold': 0.8};
+    return doc.data() ?? {'pGuess': 0.2, 'pSlip': 0.1, 'masteryThreshold': 0.8, 'redirectionLimit': 2};
   }
 
   Future<Map<String, String>> getConceptNames() async {

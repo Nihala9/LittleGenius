@@ -21,18 +21,28 @@ class AIService {
   // AI REDIRECTION LOGIC
   // Returns a "Redirection Plan" containing the next mode and a buddy message
   Map<String, dynamic> getRedirectionPlan(String currentMode, double masteryScore) {
-    List<String> modes = ["Visual", "Auditory", "Kinesthetic"];
-    modes.remove(currentMode); // Don't suggest the same mode they just failed
+    // These MUST match the cases in your GameContainer switch exactly
+    List<String> availableModes = ["Tracing", "Matching", "AudioQuest", "Puzzle"];
     
-    String nextMode = modes[Random().nextInt(modes.length)];
+    // Remove the one they are currently failing
+    availableModes.remove(currentMode); 
+    
+    // Pick a new one randomly
+    String nextMode = availableModes[Random().nextInt(availableModes.length)];
     String message = "";
 
     switch (nextMode) {
-      case "Visual":
-        message = "Tracing is tricky! Let's watch how the letter is made first. Follow the magic eyes!";
+      case "Tracing":
+        message = "You're doing great! Let's try drawing the letter now.";
         break;
-      case "Auditory":
-        message = "Let's take a break and listen to the sound this letter makes! Can you roar like the Lion?";
+      case "Matching":
+        message = "Tracing is tricky! Let's try matching the pictures instead. It's fun!";
+        break;
+      case "AudioQuest":
+        message = "Let's take a break and listen to some sounds! Can you find the right one?";
+        break;
+      case "Puzzle":
+        message = "Let's try to fix a picture puzzle together! You're good at puzzles.";
         break;
       default:
         message = "Let's try a different way to learn this together!";
@@ -41,7 +51,6 @@ class AIService {
     return {
       "nextMode": nextMode,
       "message": message,
-      "buddyAction": "think", // Used for Lottie animation selection
     };
   }
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:animate_do/animate_do.dart';
-import '../../../utils/app_colors.dart';
-import '../../../utils/game_assets.dart';
+import 'package:lottie/lottie.dart';
 import '../../../models/concept_model.dart';
+import '../../../utils/game_assets.dart';
+import '../../../utils/app_colors.dart';
 
 class MatchingActivity extends StatefulWidget {
   final Concept concept;
@@ -14,73 +14,155 @@ class MatchingActivity extends StatefulWidget {
   State<MatchingActivity> createState() => _MatchingActivityState();
 }
 
-class _MatchingActivityState extends State<MatchingActivity> {
-  bool isMatched = false;
+class _MatchingActivityState extends State<MatchingActivity> with SingleTickerProviderStateMixin {
+  late List<String> _options;
+  bool _isMatched = false;
+  bool _showTutorial = true;
+
+  // Animation Controller for the "Ghost Hand"
+  late AnimationController _tutorialController;
+  late Animation<Offset> _handPath;
+  late Animation<double> _handOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _options = GameAssets.getDistractors(widget.concept.name);
+    _options.add(widget.concept.name);
+    _options.shuffle();
+
+    // 1. Initialize Tutorial Controller (Moves every 3 seconds)
+    _tutorialController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2500),
+    )..repeat();
+
+    // 2. Define the "Drag" Path (From choices area to target area)
+    _handPath = Tween<Offset>(
+      begin: const Offset(0, 180), // Position over the items
+      end: const Offset(0, -100),   // Position over the box
+    ).animate(CurvedAnimation(
+      parent: _tutorialController, 
+      curve: const Interval(0.0, 0.8, curve: Curves.easeInOut)
+    ));
+
+    // 3. Fade in/out logic
+    _handOpacity = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween(begin: 0.0, end: 1.0), weight: 20), // Show
+      TweenSequenceItem(tween: ConstantTween(1.0), weight: 60),          // Hold
+      TweenSequenceItem(tween: Tween(begin: 1.0, end: 0.0), weight: 20), // Hide
+    ]).animate(_tutorialController);
+  }
+
+  @override
+  void dispose() {
+    _tutorialController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final data = GameAssets.getConceptData(widget.concept.name);
-    
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
+    final correctItem = GameAssets.getConceptData(widget.concept.name)['item'];
+
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        const Text("Match the Pair!", 
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
-        const SizedBox(height: 60),
-
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 1. DRAGGABLE ITEM (The Emoji/Image)
-            if (!isMatched)
-              Draggable<String>(
-                data: widget.concept.name,
-                feedback: _buildSquare(data['item'], AppColors.childPink, isFloating: true),
-                childWhenDragging: _buildSquare("", Colors.grey.shade200),
-                child: BounceInDown(child: _buildSquare(data['item'], AppColors.childPink)),
-              )
-            else
-              const SizedBox(width: 120, height: 120), // Placeholder when done
+            const Text("Match them up!", 
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+            const SizedBox(height: 40),
 
-            // 2. TARGET (The Letter/Word)
+            // --- 1. THE TARGET BOX ---
             DragTarget<String>(
               onAcceptWithDetails: (details) {
                 if (details.data == widget.concept.name) {
-                  setState(() => isMatched = true);
+                  setState(() { _isMatched = true; _showTutorial = false; });
                   widget.onComplete(true);
                 } else {
                   widget.onComplete(false);
                 }
               },
-              builder: (context, candidateData, rejectedData) {
-                return _buildSquare(
-                  widget.concept.name, 
-                  isMatched ? AppColors.childGreen : AppColors.childBlue,
-                  label: isMatched ? "Matched!" : "Drop Here"
+              builder: (context, candidate, rejected) {
+                return Container(
+                  width: 150, height: 150,
+                  decoration: BoxDecoration(
+                    color: _isMatched ? AppColors.childGreen.withOpacity(0.2) : Colors.white,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(color: _isMatched ? AppColors.childGreen : AppColors.childBlue, width: 4),
+                  ),
+                  child: Center(
+                    child: Text(widget.concept.name, 
+                      style: TextStyle(fontSize: 80, fontWeight: FontWeight.bold, color: AppColors.childBlue)),
+                  ),
                 );
               },
             ),
+
+            const SizedBox(height: 80),
+
+            // --- 2. THE CHOICES ---
+            Wrap(
+              spacing: 20,
+              children: _options.map((opt) {
+                final item = GameAssets.getConceptData(opt)['item'];
+                return Draggable<String>(
+                  data: opt,
+                  onDragStarted: () => setState(() => _showTutorial = false),
+                  feedback: _buildItemTile(item, isDragging: true),
+                  childWhenDragging: Opacity(opacity: 0.2, child: _buildItemTile(item)),
+                  child: _buildItemTile(item),
+                );
+              }).toList(),
+            ),
           ],
         ),
+
+        // --- 3. THE GHOST HAND (TUTORIAL LAYER) ---
+        if (_showTutorial && !_isMatched)
+          AnimatedBuilder(
+            animation: _tutorialController,
+            builder: (context, child) {
+              return Opacity(
+                opacity: _handOpacity.value,
+                child: Transform.translate(
+                  offset: _handPath.value,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Ghost of the item being moved
+                      Container(
+                        width: 60, height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.5),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white)
+                        ),
+                        child: Center(child: Text(correctItem, style: const TextStyle(fontSize: 30))),
+                      ),
+                      // The Hand Lottie
+                      Lottie.asset('assets/animations/hand_gesture.json', height: 70),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
 
-  Widget _buildSquare(String content, Color color, {bool isFloating = false, String? label}) {
+  Widget _buildItemTile(String emoji, {bool isDragging = false}) {
     return Container(
-      width: 120, height: 120,
+      width: 85, height: 85,
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: isFloating ? [BoxShadow(color: Colors.black26, blurRadius: 20)] : null,
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10)]
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(content, style: const TextStyle(fontSize: 50)),
-          if (label != null) Text(label, style: const TextStyle(fontSize: 12, color: Colors.white, fontWeight: FontWeight.bold)),
-        ],
-      ),
+      child: Center(child: Text(emoji, 
+        style: TextStyle(fontSize: 45, decoration: isDragging ? TextDecoration.none : null))),
     );
   }
 }

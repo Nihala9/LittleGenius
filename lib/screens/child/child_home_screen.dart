@@ -245,7 +245,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(asset, height: 60, errorBuilder: (c, e, s) => const Icon(Icons.category, size: 40)), 
+            Image.asset(asset, height: 100, errorBuilder: (c, e, s) => const Icon(Icons.category, size: 40)), 
             const SizedBox(height: 10),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.childNavy)),
           ],
