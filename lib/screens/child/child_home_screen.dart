@@ -2,14 +2,19 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/child_model.dart';
+import '../../models/story_model.dart'; // Added
 import '../../utils/app_colors.dart';
 import '../../services/database_service.dart';
 import '../../services/voice_service.dart';
-import '../../widgets/interactive_buddy.dart'; // Import the buddy widget
+import '../../widgets/interactive_buddy.dart'; 
 import '../parent/parent_dashboard.dart';
 import 'learning_map.dart';
 import 'badge_gallery.dart';
 import 'sleep_mode_screen.dart';
+import 'category_selector_screen.dart';
+import 'bubble_pop_game.dart';
+import 'stories/story_player_screen.dart';
+import 'stories/story_library_screen.dart'; // Added
 
 class ChildHomeScreen extends StatefulWidget {
   final ChildProfile child;
@@ -108,7 +113,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         return Stack(
           children: [
             Scaffold(
-              backgroundColor: Colors.white,
+              backgroundColor: const Color(0xFFF8FBFF),
               body: SafeArea(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -120,17 +125,12 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                       const SizedBox(height: 25),
                       _buildTodayHabitCard(liveChild),
                       const SizedBox(height: 30),
-                      
-                      const Text("Your Journey", 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
-                      const SizedBox(height: 15),
-
+                      _buildCategoryHeading(liveChild),
                       _buildCategoryRow(liveChild),
-                      
                       const SizedBox(height: 30),
-                      _buildRewardSection(liveChild),
+                      _buildStressGameCard(context),
                       const SizedBox(height: 30),
-                      _buildStoryCard(),
+                      _buildStoryCard(context),
                       const SizedBox(height: 100),
                     ],
                   ),
@@ -149,86 +149,105 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     int remaining = liveChild.dailyLimit - _minutesPlayed;
     return Row(
       children: [
-        CircleAvatar(radius: 26, backgroundColor: AppColors.lavender, backgroundImage: AssetImage(liveChild.avatarUrl)),
+        CircleAvatar(radius: 26, backgroundImage: AssetImage(liveChild.avatarUrl)),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_getTimeBasedGreeting(), style: const TextStyle(color: Colors.grey, fontSize: 13)),
-            Text(liveChild.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: AppColors.childNavy)),
-          ],
-        ),
-        const Spacer(),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(15)),
-          child: Row(
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.timer_outlined, size: 14, color: remaining < 5 ? Colors.red : AppColors.childBlue),
-              const SizedBox(width: 4),
-              Text("${remaining}m", style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: remaining < 5 ? Colors.red : AppColors.childBlue)),
+              Text(_getTimeBasedGreeting(), style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              Text(liveChild.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.childNavy)),
             ],
           ),
         ),
+        _pill(Icons.timer_outlined, "${remaining}m", AppColors.childBlue),
         const SizedBox(width: 10),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: AppColors.childBlue, borderRadius: BorderRadius.circular(20)),
-          child: Row(
-            children: [
-              const Icon(Icons.stars_rounded, color: Colors.white, size: 18),
-              const SizedBox(width: 4),
-              Text("${liveChild.totalStars}", style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-            ],
-          ),
-        )
+        _pill(Icons.stars_rounded, "${liveChild.totalStars}", Colors.white, bg: AppColors.childBlue, shadow: true),
       ],
+    );
+  }
+
+  Widget _pill(IconData icon, String label, Color color, {Color? bg, bool shadow = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: bg ?? const Color(0xFFEEF7FF), 
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: shadow ? [BoxShadow(color: color.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))] : null
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 14, color: color),
+          const SizedBox(width: 4),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+        ],
+      ),
     );
   }
 
   Widget _buildTodayHabitCard(ChildProfile liveChild) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: AppColors.childBlue.withAlpha(20), borderRadius: BorderRadius.circular(30)),
+      decoration: BoxDecoration(color: const Color(0xFFEBF5FF), borderRadius: BorderRadius.circular(30)),
       child: Row(
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("BUDDY TIP", style: TextStyle(color: Colors.blueGrey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                const Text("Today's good habit", style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text("\"Kindness makes you a superstar!\"", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+                const Text("\"Kindness makes the world better.\"", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
                 const SizedBox(height: 15),
-                ElevatedButton(
-                  onPressed: () => _voice.speak("Always be kind to everyone!", liveChild.language),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.childBlue, shape: const StadiumBorder()),
-                  child: const Text("Listen"),
+                Row(
+                  children: [
+                    ElevatedButton(
+                      onPressed: () => _voice.speak("Always be kind!", liveChild.language),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.childBlue, shape: const StadiumBorder(), elevation: 0),
+                      child: const Text("Listen"),
+                    ),
+                    const SizedBox(width: 12),
+                    const Icon(Icons.local_fire_department, color: Colors.orange, size: 18),
+                    const Text(" 5 Days", style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold, fontSize: 13)),
+                  ],
                 ),
               ],
             ),
           ),
-          // Buddy is now interactive (tap to giggle/talk)
-          InteractiveBuddy(height: 110, language: liveChild.language), 
+          InteractiveBuddy(height: 90, language: liveChild.language), 
         ],
       ),
+    );
+  }
+
+  Widget _buildCategoryHeading(ChildProfile liveChild) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        const Text("Your Journey", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+        TextButton(
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => CategorySelectorScreen(child: liveChild))),
+          child: const Text("See All", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+        )
+      ],
     );
   }
 
   Widget _buildCategoryRow(ChildProfile liveChild) {
     return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _db.streamCategories(),
-      builder: (context, catSnapshot) {
-        if (!catSnapshot.hasData) return const SizedBox(height: 140, child: Center(child: CircularProgressIndicator()));
-        final categories = catSnapshot.data ?? [];
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox(height: 100);
+        final categories = snapshot.data!;
         return SizedBox(
-          height: 140,
+          height: 150,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final cat = categories[index];
-              return _buildCategoryCard(cat['name'] ?? "Lesson", cat['imagePath'] ?? 'assets/icons/category/c1.png', liveChild);
+              List<Color> borderColors = [const Color(0xFFBBDEFB), const Color(0xFFF8BBD0), const Color(0xFFFFCC80)];
+              return _buildCategoryCard(cat['name'], cat['imagePath'], borderColors[index % 3], liveChild);
             },
           ),
         );
@@ -236,16 +255,20 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     );
   }
 
-  Widget _buildCategoryCard(String title, String asset, ChildProfile liveChild) {
+  Widget _buildCategoryCard(String title, String? asset, Color border, ChildProfile liveChild) {
     return GestureDetector(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => LearningMapScreen(child: liveChild, category: title))),
       child: Container(
-        width: 110, margin: const EdgeInsets.only(right: 15),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), border: Border.all(color: Colors.grey.shade100), boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 5)]),
+        width: 110, margin: const EdgeInsets.only(right: 15, bottom: 5),
+        decoration: BoxDecoration(
+          color: Colors.white, borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: border.withOpacity(0.5), width: 2),
+          boxShadow: [BoxShadow(color: border.withOpacity(0.2), blurRadius: 8, offset: const Offset(0, 4))],
+        ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(asset, height: 100, errorBuilder: (c, e, s) => const Icon(Icons.category, size: 40)), 
+            asset != null ? Image.asset(asset, height: 60) : const Icon(Icons.auto_awesome, size: 40),
             const SizedBox(height: 10),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.childNavy)),
           ],
@@ -254,70 +277,104 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     );
   }
 
-  Widget _buildRewardSection(ChildProfile liveChild) {
+  Widget _buildStressGameCard(BuildContext context) {
     return GestureDetector(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild))),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const BubblePopGame())),
       child: Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: const Color(0xFFFFEFEF), borderRadius: BorderRadius.circular(30)),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(colors: [Color(0xFFE0C3FC), Color(0xFF8EC5FC)]),
+          borderRadius: BorderRadius.circular(30),
+        ),
         child: Row(
           children: [
-            const Icon(Icons.emoji_events_rounded, color: Colors.orange, size: 40),
-            const SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Badge Gallery", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.childNavy)),
-                Text("You have ${liveChild.badges.length} stickers!", style: const TextStyle(color: Colors.grey, fontSize: 13)),
-              ],
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Relaxing Pop", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
+                  Text("Release stress with bubbles", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                ],
+              ),
             ),
-            const Spacer(),
-            const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+              child: const Text("Play", style: TextStyle(color: Colors.purple, fontWeight: FontWeight.bold)),
+            )
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStoryCard() {
+  Widget _buildStoryCard(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Bedtime Stories", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text("Bedtime Stories", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.childNavy)),
+            GestureDetector(
+              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => const StoryLibraryScreen())),
+              child: const Text("See All", style: TextStyle(color: Colors.redAccent, fontSize: 12, fontWeight: FontWeight.bold)),
+            ),
+          ],
+        ),
         const SizedBox(height: 15),
-        Container(
-          decoration: BoxDecoration(color: const Color(0xFFFEF9E7), borderRadius: BorderRadius.circular(25)),
-          child: const ListTile(
-            leading: Icon(Icons.menu_book, color: Colors.orange),
-            title: Text("The Happy Lion", style: TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text("Audio Story • 5 min"),
-            trailing: Icon(Icons.play_circle_fill, color: Colors.orange, size: 30),
-          ),
+        StreamBuilder<List<KidStory>>(
+          stream: _db.streamStories(),
+          builder: (context, snapshot) {
+            if (!snapshot.hasData || snapshot.data!.isEmpty) return const Text("More stories coming soon!");
+            final latest = snapshot.data!.first;
+
+            return Container(
+              padding: const EdgeInsets.all(15),
+              decoration: BoxDecoration(color: const Color(0xFFFFF9E5), borderRadius: BorderRadius.circular(25)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("Featured Story", style: TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)),
+                        Text(latest.title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: () => Navigator.push(context, MaterialPageRoute(
+                            builder: (c) => StoryPlayerScreen(videoId: latest.youtubeId, title: latest.title)
+                          )),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.childBlue, shape: const StadiumBorder(), elevation: 0),
+                          child: const Text("Watch Now"),
+                        )
+                      ],
+                    ),
+                  ),
+                  Image.asset('assets/images/lion.png', height: 80, errorBuilder: (c,e,s) => const Icon(Icons.pets, size: 40)),
+                ],
+              ),
+            );
+          },
         )
       ],
     );
   }
 
   Widget _buildBottomNav(ChildProfile liveChild) {
-    return Container(
-      decoration: const BoxDecoration(boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-      child: ClipRRect(
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(30)),
-        child: BottomNavigationBar(
-          currentIndex: _bottomNavIndex,
-          selectedItemColor: AppColors.childBlue,
-          onTap: (i) {
-            if (i == 1) Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
-            else if (i == 2) _openParentLock(liveChild);
-            else setState(() => _bottomNavIndex = i);
-          },
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: "Home"),
-            BottomNavigationBarItem(icon: Icon(Icons.emoji_events), label: "Badges"),
-            BottomNavigationBarItem(icon: Icon(Icons.lock_person), label: "Parents"),
-          ],
-        ),
-      ),
+    return BottomNavigationBar(
+      currentIndex: _bottomNavIndex,
+      selectedItemColor: AppColors.childBlue,
+      onTap: (i) {
+        if (i == 1) Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
+        else if (i == 2) _openParentLock(liveChild);
+        else setState(() => _bottomNavIndex = i);
+      },
+      items: const [
+        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: "Home"),
+        BottomNavigationBarItem(icon: Icon(Icons.star_rounded), label: "Badges"),
+        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: "Profile"),
+      ],
     );
   }
 }

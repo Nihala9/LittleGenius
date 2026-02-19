@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'dart:math' as math; // Required for floating math
+import 'dart:math' as math;
 import '../../models/child_model.dart';
 import '../../services/database_service.dart';
 import '../../utils/app_colors.dart';
@@ -13,12 +13,11 @@ class ProfileWizardScreen extends StatefulWidget {
   State<ProfileWizardScreen> createState() => _ProfileWizardScreenState();
 }
 
-class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTickerProviderStateMixin {
+class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerProviderStateMixin {
   final PageController _pageController = PageController();
   int _currentStep = 0; 
   final _db = DatabaseService();
   
-  // Animation for the floating bird mascot
   late AnimationController _mascotController;
 
   // --- DATA STATE ---
@@ -28,19 +27,13 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
   String _selectedIcon = 'assets/icons/profiles/p1.png';
 
   final List<String> _profileIcons = [
-    'assets/icons/profiles/p1.png',
-    'assets/icons/profiles/p2.png',
-    'assets/icons/profiles/p3.png',
-    'assets/icons/profiles/p4.png',
-    'assets/icons/profiles/p5.png',
-    'assets/icons/profiles/p6.png',
-    'assets/icons/profiles/p7.png',
-    'assets/icons/profiles/p8.png',
-    'assets/icons/profiles/p9.png',
-    'assets/icons/profiles/p10.png',
+    'assets/icons/profiles/p1.png', 'assets/icons/profiles/p2.png',
+    'assets/icons/profiles/p3.png', 'assets/icons/profiles/p4.png',
+    'assets/icons/profiles/p5.png', 'assets/icons/profiles/p6.png',
+    'assets/icons/profiles/p7.png', 'assets/icons/profiles/p8.png',
+    'assets/icons/profiles/p9.png', 'assets/icons/profiles/p10.png',
   ];
 
-  // Specific Palette from your "Select your Class" image
   final List<Map<String, dynamic>> _classes = [
     {'name': 'Pre-School', 'color': const Color(0xFF9173FF), 'icon': Icons.school_rounded},
     {'name': 'Class 1', 'color': const Color(0xFFFF6B9D), 'val': '1'},
@@ -54,7 +47,6 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
   @override
   void initState() {
     super.initState();
-    // Setup smooth floating animation (2 seconds up and down)
     _mascotController = AnimationController(
       duration: const Duration(seconds: 2), 
       vsync: this
@@ -77,6 +69,9 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
   }
 
   void _onNext() {
+    // Hide keyboard automatically when moving between steps
+    FocusScope.of(context).unfocus();
+
     if (_currentStep < 3) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 500), 
@@ -106,6 +101,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
         'preferredMode': 'Tracing', 
         'totalStars': 0, 
         'masteryScores': {}, 
+        'badges': [],
         'createdAt': DateTime.now(), 
         'dailyLimit': 30
       });
@@ -119,23 +115,23 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFDFDFF), // Clean slight-off-white
+      backgroundColor: const Color(0xFFFDFDFF),
+      // Prevents the background from resizing when keyboard appears
+      resizeToAvoidBottomInset: false, 
       body: Stack(
         children: [
-          // --- THE AI BUDDY (JUST THE BIRD, NO BACKGROUND) ---
+          // --- AI BUDDY BACKGROUND ---
           Positioned(
-            bottom: -10,
+            bottom: -20,
             right: -20,
             child: AnimatedBuilder(
               animation: _mascotController,
               builder: (context, child) {
                 return Transform.translate(
-                  // Vertical floating math
                   offset: Offset(0, 15 * math.sin(_mascotController.value * math.pi)),
-                  child: Image.asset(
-                    'assets/images/buddy.png', 
-                    height: 250, 
-                    fit: BoxFit.contain, // Ensures no clipping
+                  child: Opacity(
+                    opacity: 0.6, // Faded so it doesn't distract from forms
+                    child: Image.asset('assets/images/buddy.png', height: 200),
                   ),
                 );
               },
@@ -169,155 +165,131 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
 
   Widget _buildHeaderStepper() {
     return Padding(
-      padding: const EdgeInsets.all(25),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(4, (i) => Row(children: [
           Container(
-            width: 32, height: 32,
+            width: 30, height: 30,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: i < _currentStep ? AppColors.teal : (i == _currentStep ? AppColors.ultraViolet : Colors.white),
+              color: i < _currentStep ? AppColors.childGreen : (i == _currentStep ? AppColors.ultraViolet : Colors.white),
               border: Border.all(color: i <= _currentStep ? Colors.transparent : Colors.grey.shade300),
             ),
             child: Center(
               child: i < _currentStep 
-                ? const Icon(Icons.check, size: 18, color: Colors.white) 
-                : Text("${i + 1}", style: TextStyle(color: i == _currentStep ? Colors.white : Colors.grey, fontWeight: FontWeight.bold)),
+                ? const Icon(Icons.check, size: 16, color: Colors.white) 
+                : Text("${i + 1}", style: TextStyle(color: i == _currentStep ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
             ),
           ),
-          if (i < 3) Container(width: 30, height: 3, color: i < _currentStep ? AppColors.teal : Colors.grey.shade200),
+          if (i < 3) Container(width: 20, height: 2, color: i < _currentStep ? AppColors.childGreen : Colors.grey.shade200),
         ])),
       ),
     );
   }
 
   // --- STEP 1: NAME ---
-  Widget _stepName() => Padding(
+  Widget _stepName() => SingleChildScrollView(
     padding: const EdgeInsets.symmetric(horizontal: 40),
     child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text("Hello! What's your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-        const Text("Name", style: TextStyle(fontSize: 42, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 126, 203, 234))),
+        const SizedBox(height: 50),
+        const Text("Hello! What's your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+        const Text("Name?", style: TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
         const SizedBox(height: 40),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25),
-            boxShadow: [BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 20, offset: const Offset(0, 10))],
-          ),
-          child: TextField(
-            controller: _nameController,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.ultraViolet),
-            decoration: InputDecoration(
-              hintText: "Type name here...",
-              filled: true, fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(vertical: 20),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide.none),
-            ),
+        TextField(
+          controller: _nameController,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+          decoration: InputDecoration(
+            hintText: "Type here...",
+            filled: true, fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.grey.shade200)),
           ),
         ),
       ],
     ),
   );
 
-  // --- STEP 2: CLASS GRID (MATCHING IMAGE) ---
-  Widget _stepClassGrid() => Padding(
+  // --- STEP 2: CLASS GRID ---
+  Widget _stepClassGrid() => SingleChildScrollView(
     padding: const EdgeInsets.all(25),
     child: Column(
       children: [
-        const Text("Select your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-        const Text("Class", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 143, 211, 243))),
-        const SizedBox(height: 10),
-        const Text("Test your skills and learn new things!", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 13)),
+        const Text("Select your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+        const Text("Class", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
         const SizedBox(height: 20),
-        Expanded(
-          child: GridView.builder(
-            itemCount: _classes.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2, mainAxisSpacing: 15, crossAxisSpacing: 15, childAspectRatio: 2.1
-            ),
-            itemBuilder: (c, i) {
-              bool isSelected = _selectedClass == _classes[i]['name'];
-              return InkWell(
-                onTap: () => setState(() => _selectedClass = _classes[i]['name']),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 200),
-                  decoration: BoxDecoration(
-                    color: _classes[i]['color'],
-                    borderRadius: BorderRadius.circular(25),
-                    border: isSelected ? Border.all(color: const Color.fromARGB(255, 255, 255, 255), width: 4) : null,
-                    boxShadow: [BoxShadow(color: _classes[i]['color'].withAlpha(120), blurRadius: 10, offset: const Offset(0, 4))],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 15),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(_classes[i]['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 13)),
-                        if (_classes[i]['icon'] != null) Icon(_classes[i]['icon'], color: Colors.white)
-                        else Text(_classes[i]['val'], style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900)),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+        GridView.builder(
+          shrinkWrap: true, // IMPORTANT: Allows Grid to work inside SingleChildScrollView
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _classes.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2, mainAxisSpacing: 15, crossAxisSpacing: 15, childAspectRatio: 2.2
           ),
+          itemBuilder: (c, i) {
+            bool isSelected = _selectedClass == _classes[i]['name'];
+            return InkWell(
+              onTap: () => setState(() => _selectedClass = _classes[i]['name']),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: _classes[i]['color'],
+                  borderRadius: BorderRadius.circular(20),
+                  border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(_classes[i]['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(width: 5),
+                    if (_classes[i]['icon'] != null) Icon(_classes[i]['icon'], color: Colors.white, size: 18)
+                    else Text(_classes[i]['val'], style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            );
+          },
         )
       ],
     ),
   );
 
   // --- STEP 3: BADGE PICKER ---
-  Widget _stepBadgePicker() => Column(
-    mainAxisAlignment: MainAxisAlignment.center,
-    children: [
-      const Text("Pick your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-      const Text("Badge", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w500, color: Color.fromARGB(255, 131, 229, 248))),
-      const SizedBox(height: 30),
-      Wrap(
-        spacing: 20, runSpacing: 20,
-        children: _profileIcons.map<Widget>((path) => GestureDetector(
-          onTap: () => setState(() => _selectedIcon = path),
-          child: AnimatedScale(
-            scale: _selectedIcon == path ? 1.15 : 1.0,
-            duration: const Duration(milliseconds: 200),
+  Widget _stepBadgePicker() => SingleChildScrollView(
+    padding: const EdgeInsets.all(25),
+    child: Column(
+      children: [
+        const Text("Pick your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+        const Text("Badge", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
+        const SizedBox(height: 20),
+        Wrap(
+          spacing: 15, runSpacing: 15,
+          children: _profileIcons.map((path) => GestureDetector(
+            onTap: () => setState(() => _selectedIcon = path),
             child: Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                border: Border.all(color: _selectedIcon == path ? AppColors.ultraViolet : Colors.white, width: 4),
-                boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 15)],
+                border: Border.all(color: _selectedIcon == path ? AppColors.ultraViolet : Colors.transparent, width: 3),
               ),
-              child: CircleAvatar(radius: 40, backgroundColor: Colors.white, backgroundImage: AssetImage(path)),
+              child: CircleAvatar(radius: 35, backgroundColor: Colors.white, backgroundImage: AssetImage(path)),
             ),
-          ),
-        )).toList(),
-      ),
-    ],
+          )).toList(),
+        ),
+      ],
+    ),
   );
 
   // --- STEP 4: LANGUAGE ---
-  Widget _stepLanguage() => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 30),
+  Widget _stepLanguage() => SingleChildScrollView(
+    padding: const EdgeInsets.all(25),
     child: Column(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        const Text("Choose your", style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900)),
-        const Text("Language", style: TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Colors.amber)),
-        const SizedBox(height: 30),
-        ...['English', 'Malayalam', 'Hindi', 'Arabic'].map<Widget>((l) => Card(
-          margin: const EdgeInsets.only(bottom: 12),
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: _selectedLanguage == l ? AppColors.ultraViolet : Colors.grey.shade200, width: 2)
-          ),
-          color: _selectedLanguage == l ? AppColors.ultraViolet : Colors.white,
+        const Text("Choose your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
+        const Text("Language", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.amber)),
+        const SizedBox(height: 20),
+        ...['English', 'Malayalam', 'Hindi', 'Arabic'].map((l) => Card(
           child: RadioListTile(
-            title: Text(l, style: TextStyle(fontWeight: FontWeight.bold, color: _selectedLanguage == l ? Colors.white : AppColors.textDark)),
-            value: l, groupValue: _selectedLanguage, activeColor: Colors.white,
+            title: Text(l, style: const TextStyle(fontWeight: FontWeight.bold)),
+            value: l, groupValue: _selectedLanguage,
             onChanged: (v) => setState(() => _selectedLanguage = v.toString()),
           ),
         )),
@@ -326,16 +298,15 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with SingleTi
   );
 
   Widget _buildFooter() => Padding(
-    padding: const EdgeInsets.all(30),
+    padding: const EdgeInsets.all(20),
     child: ElevatedButton(
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.ultraViolet,
-        minimumSize: const Size(double.infinity, 65),
+        minimumSize: const Size(double.infinity, 60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        elevation: 8,
       ),
       onPressed: _onNext,
-      child: Text(_currentStep == 3 ? "Let's Play!" : "Continue", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+      child: Text(_currentStep == 3 ? "Let's Play!" : "Continue", style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
     ),
   );
 }

@@ -65,99 +65,133 @@ class _GameContainerState extends State<GameContainer> {
     super.dispose();
   }
 
-  void _startActivity() async {
-    // Buddy explains the new task
-    String msg = "Let's try ${_currentActivity.activityMode} mode with ${widget.concept.name}!";
-    await _voice.speak(msg, widget.child.language);
+  // --- NATIVE TRANSLATION ENGINE ---
+  String _getLocalizedIntro(String conceptName, String mode, String lang) {
+    if (lang == "Malayalam") {
+      switch (mode) {
+        case "Tracing": return "Namukku $conceptName varaykkan padikkam!"; 
+        case "Matching": return "$conceptName, ithu cherupadippikkam!"; 
+        case "AudioQuest": return "Sradhichu kelkkoo, $conceptName evideyanu?"; 
+        case "Puzzle": return "Ithu onnu shariyaakkoo!"; 
+        default: return "Namukku orumichu padikkam!";
+      }
+    } else if (lang == "Hindi") {
+      switch (mode) {
+        case "Tracing": return "Chalo, $conceptName likhna seekhte hain!"; 
+        case "Matching": return "Sahi jodi milao!"; 
+        case "AudioQuest": return "Sun kar batao, $conceptName kahan hai?"; 
+        case "Puzzle": return "Is puzzle ko solve karo!"; 
+        default: return "Chalo khelte hain!";
+      }
+    }
+    return "Let's learn $conceptName with $mode!";
   }
 
-  // --- CORE LOGIC: SUCCESS OR FAIL ---
+  void _startActivity() async {
+    String msg = _getLocalizedIntro(widget.concept.name, _currentActivity.activityMode, widget.child.language);
+    // Tiny delay to ensure UI is ready
+    Future.delayed(const Duration(milliseconds: 700), () async {
+       await _voice.speak(msg, widget.child.language);
+    });
+  }
+
+  // --- CORE COMPLETION LOGIC ---
   void _onActivityComplete(bool isCorrect) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     if (isCorrect) {
       await SoundService.playSFX('success.mp3');
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 600)); // Prevent audio overlap
       _handleSuccess(user.uid);
     } else {
       await SoundService.playSFX('wrong.mp3');
-      await Future.delayed(const Duration(milliseconds: 500));
+      await Future.delayed(const Duration(milliseconds: 600));
       _localAttempts++;
-      
-      if (_localAttempts >= _adminLimit) {
-        // TRIGGER AI REDIRECTION
-        _showRedirectionDialog();
-      } else {
-        // TRIGGER RETRY
-        _showRetryDialog();
-      }
+      if (_localAttempts >= _adminLimit) _showRedirectionDialog();
+      else _showRetryDialog();
     }
   }
 
   void _handleSuccess(String uid) async {
+    // 1. Logic Calculations
     double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
     double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
     
+    // 2. Database Updates
     await _db.updateMastery(uid, widget.child.id, widget.concept.id, newMastery);
     await _db.addStars(uid, widget.child.id, 10);
 
+    // 3. Badge Unlock Check (If Mastery hits 80%)
+    if (newMastery >= 0.8 && !widget.child.badges.contains(widget.concept.category)) {
+      await _db.unlockBadge(uid, widget.child.id, widget.concept.category);
+    }
+
+    // 4. Celebration Sequence
     setState(() => _isCelebrating = true);
     _confettiController.play();
-    await _voice.speak("Superstar! You are so smart!", widget.child.language);
+    
+    String winMsg = _getLocalizedText("Superstar! You did it!", "Samarthan! Nannayi cheithu!", "Shabash! Bahut badhiya!");
+    await _voice.speak(winMsg, widget.child.language);
 
     _showPopDialog(
-      title: "AMAZING!",
-      message: "You learned ${widget.concept.name}!",
-      buttonText: "Finish Level",
-      lottieAsset: 'assets/animations/trophy.json',
+      title: _getLocalizedText("AMAZING!", "Sammaanam!", "Shaandaar!"),
+      message: _getLocalizedText("You earned 10 Stars!", "Ninnakku 10 nakshatrangal labhichu!", "Aapko 10 sitare mile!"),
+      buttonText: _getLocalizedText("Finish Level", "Adutha Ghattam", "Agla Level"),
+      lottieAsset: 'assets/animations/trophy.json', 
       iconColor: Colors.amber,
-      onPressed: () {
-        Navigator.pop(context); // Close Dialog
-        Navigator.pop(context); // Go back to Map
+      onPressed: () { 
+        Navigator.pop(context); // Close Popup
+        Navigator.pop(context); // Return to Map
       }, 
     );
   }
 
   void _showRetryDialog() {
-    _voice.speak("Don't worry! Let's try one more time.", widget.child.language);
-
     _showPopDialog(
-      title: "OOPS!",
-      message: "Keep trying! You can do it!",
-      buttonText: "Try Again",
+      title: _getLocalizedText("TRY AGAIN", "Sradhikkuka", "Koshish Karo"),
+      message: _getLocalizedText("Give it one more try, buddy!", "Onnu koodi sramikkoo!", "Ek baar aur koshish karo!"),
+      buttonText: _getLocalizedText("Retry", "Veendum", "Dobara"),
       icon: Icons.refresh_rounded,
       iconColor: AppColors.childOrange,
-      onPressed: () {
-        Navigator.pop(context); // Close dialog
-        setState(() {}); // Re-builds current activity
+      onPressed: () { 
+        Navigator.pop(context); 
+        setState(() {}); // Rebuild activity locally
       },
     );
   }
 
   void _showRedirectionDialog() async {
-    // Get a redirection plan from AI
     final plan = _aiLogic.getRedirectionPlan(_currentActivity.activityMode, 0.2);
-    await _voice.speak(plan['message'], widget.child.language);
+    
+    String speakMsg = _getLocalizedText("Let's try a new game!", "Puthiya kali kalikkam!", "Naya game khelte hain!");
+    await _voice.speak(speakMsg, widget.child.language);
 
     _showPopDialog(
-      title: "TRY THIS!",
+      title: _getLocalizedText("TRY THIS!", "Puthiya Kali!", "Ye Try Karo!"),
       message: plan['message'],
-      buttonText: "Let's Go!",
+      buttonText: _getLocalizedText("Start!", "Thudangam", "Shuru Karein"),
       icon: Icons.auto_awesome_rounded,
       iconColor: AppColors.teal,
-      onPressed: () {
-        Navigator.pop(context); // Close Dialog
-        _switchActivityMode(plan['nextMode']); // Switch Mode Immediately
+      onPressed: () { 
+        Navigator.pop(context); 
+        _switchActivityMode(plan['nextMode']); 
       },
     );
   }
 
+  String _getLocalizedText(String en, String ml, String hi) {
+    if (widget.child.language == "Malayalam") return ml;
+    if (widget.child.language == "Hindi") return hi;
+    return en;
+  }
+
   void _switchActivityMode(String newMode) {
     setState(() {
-      _localAttempts = 0; // Reset counter for the new mode
+      _localAttempts = 0;
+      // Unique ID ensures ValueKey forces a full UI rebuild
       _currentActivity = Activity(
-        id: 'temp_${DateTime.now().millisecondsSinceEpoch}', // Unique ID
+        id: 'redirect_${DateTime.now().millisecondsSinceEpoch}', 
         conceptId: widget.concept.id, 
         title: "", 
         activityMode: newMode, 
@@ -168,7 +202,6 @@ class _GameContainerState extends State<GameContainer> {
     _startActivity();
   }
 
-  // --- REUSABLE POPUP ---
   void _showPopDialog({
     required String title, 
     required String message, 
@@ -179,27 +212,30 @@ class _GameContainerState extends State<GameContainer> {
     required VoidCallback onPressed
   }) {
     showDialog(
-      context: context,
-      barrierDismissible: false,
+      context: context, barrierDismissible: false,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(40)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 10),
             if (lottieAsset != null) 
-              Lottie.asset(lottieAsset, height: 150) 
+              Lottie.asset(lottieAsset, height: 150, errorBuilder: (c, e, s) => Icon(Icons.emoji_events, size: 80, color: iconColor)) 
             else 
               Icon(icon, size: 80, color: iconColor),
             const SizedBox(height: 20),
-            Text(title, style: const TextStyle(fontSize: 26, fontWeight: FontWeight.w900, color: AppColors.childNavy)),
+            Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.childNavy)),
             const SizedBox(height: 10),
             Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.blueGrey)),
             const SizedBox(height: 30),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: iconColor, minimumSize: const Size(200, 60), shape: const StadiumBorder(), elevation: 5),
-              onPressed: onPressed,
-              child: Text(buttonText, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: iconColor, 
+                minimumSize: const Size(200, 50), 
+                shape: const StadiumBorder(),
+                elevation: 5
+              ),
+              onPressed: onPressed, 
+              child: Text(buttonText, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
             ),
           ],
         ),
@@ -213,15 +249,16 @@ class _GameContainerState extends State<GameContainer> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // THE GAME VIEW (Wrapped in Key to ensure fresh reset on mode switch)
+          // THE GAME VIEW
           AbsorbPointer(
             absorbing: _isCelebrating, 
             child: Center(
-              key: ValueKey(_currentActivity.id), // CRITICAL: Forces reset when mode changes
+              key: ValueKey(_currentActivity.id), // CRITICAL: Rebuilds on redirection
               child: _buildGameView()
             )
           ),
 
+          // OVERLAYS
           Align(
             alignment: Alignment.topCenter, 
             child: ConfettiWidget(
@@ -231,6 +268,7 @@ class _GameContainerState extends State<GameContainer> {
             )
           ),
 
+          // HUD ELEMENTS
           Positioned(
             bottom: 20, 
             left: 20, 
@@ -252,11 +290,30 @@ class _GameContainerState extends State<GameContainer> {
 
   Widget _buildGameView() {
     switch (_currentActivity.activityMode) {
-      case "Tracing": return TracingActivity(targetLetter: widget.concept.name, onComplete: _onActivityComplete);
-      case "Matching": return MatchingActivity(concept: widget.concept, onComplete: _onActivityComplete);
-      case "AudioQuest": return AudioQuestActivity(concept: widget.concept, language: widget.child.language, onComplete: _onActivityComplete);
-      case "Puzzle": return PuzzleActivity(itemName: widget.concept.name, onComplete: _onActivityComplete);
-      default: return const Center(child: CircularProgressIndicator());
+      case "Tracing": 
+        return TracingActivity(
+          targetLetter: widget.concept.name, 
+          language: widget.child.language, 
+          onComplete: _onActivityComplete
+        );
+      case "Matching": 
+        return MatchingActivity(
+          concept: widget.concept, 
+          onComplete: _onActivityComplete
+        );
+      case "AudioQuest": 
+        return AudioQuestActivity(
+          concept: widget.concept, 
+          language: widget.child.language, 
+          onComplete: _onActivityComplete
+        );
+      case "Puzzle": 
+        return PuzzleActivity(
+          itemName: widget.concept.name, 
+          onComplete: _onActivityComplete
+        );
+      default: 
+        return const Center(child: CircularProgressIndicator());
     }
   }
 }

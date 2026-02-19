@@ -12,6 +12,7 @@ import 'global_voices_screen.dart';
 import 'admin_analytics_screen.dart';
 import 'content_review_screen.dart';
 import 'account_help_screen.dart';
+import 'admin_story_manager.dart'; 
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -171,6 +172,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
           () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AdminCategoryScreen()))),
         _moduleItem(context, "Content Tester", Icons.verified_user_rounded, Colors.red, 
           () => Navigator.push(context, MaterialPageRoute(builder: (c) => const ContentReviewScreen()))),
+        _moduleItem(context, "Story Library", Icons.video_library_rounded, Colors.redAccent, 
+          () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AdminStoryManager()))),
         _moduleItem(context, "AI Logic Tuning", Icons.psychology_rounded, Colors.orange, 
           () => Navigator.push(context, MaterialPageRoute(builder: (c) => const AITuningScreen()))),
         _moduleItem(context, "Global Analytics", Icons.analytics_rounded, AppColors.teal, 

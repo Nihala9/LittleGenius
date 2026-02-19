@@ -40,10 +40,17 @@ dependencies:
 
   shared_preferences: ^2.2.2
 
+  http: ^1.1.0
+  path_provider: ^2.1.1
+  url_launcher: ^6.2.5
+  youtube_player_flutter: ^9.0.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  mocktail: ^1.0.0  # Popular for mocking classes
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
@@ -54,3 +61,8 @@ flutter:
     - assets/icons/category/
     - assets/sounds/         # ADDED: Create this folder for music/beeps
     - assets/animations/     # ADDED: For Lottie files
+
+flutter_icons:
+  android: true
+  ios: false
+  image_path: assets/images/logo.png

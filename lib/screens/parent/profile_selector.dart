@@ -6,7 +6,7 @@ import '../../services/voice_service.dart';
 import '../../models/child_model.dart';
 import '../../utils/app_colors.dart';
 import '../child/child_home_screen.dart';
-import 'profile_wizard_screen.dart'; // NOW USED
+import 'profile_wizard_screen.dart'; 
 
 class ProfileSelectorScreen extends StatefulWidget {
   const ProfileSelectorScreen({super.key});
@@ -28,9 +28,10 @@ class _ProfileSelectorScreenState extends State<ProfileSelectorScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('activeChildId', child.id);
 
-    String greet = child.language == "Malayalam" 
-        ? "Namaskaram ${child.name}! Namukku thudangam?" 
-        : "Hi ${child.name}! Ready for an adventure?";
+    // FIX: Generate the greeting based on the specific language
+    String greet = _getLocalizedGreeting(child.name, child.language);
+    
+    // Speak using the VoiceService (it will detect language automatically)
     await _voice.speak(greet, child.language);
 
     if (!mounted) return;
@@ -38,6 +39,24 @@ class _ProfileSelectorScreenState extends State<ProfileSelectorScreen> {
       context, 
       MaterialPageRoute(builder: (c) => ChildHomeScreen(child: child))
     );
+  }
+
+  // --- HELPER: Returns native greeting text ---
+  String _getLocalizedGreeting(String name, String language) {
+    switch (language) {
+      case "Malayalam":
+        return "Namaskaram $name! Namukku thudangam?"; 
+      case "Hindi":
+        return "Namaste $name! Chalo khelte hain!"; 
+      case "Arabic":
+        return "Marhaban $name! Hayya bina nal'ab!"; 
+      case "Spanish":
+        return "¡Hola $name! ¿Listo para jugar?"; 
+      case "French":
+        return "Bonjour $name! Prêt à jouer?"; 
+      default:
+        return "Hi $name! Ready for an adventure?";
+    }
   }
 
   @override
@@ -109,7 +128,7 @@ class _ProfileSelectorScreenState extends State<ProfileSelectorScreen> {
             CircleAvatar(
               radius: 45, 
               backgroundColor: AppColors.lavender,
-              backgroundImage: AssetImage(profile.avatarUrl), // Local Badge Icon
+              backgroundImage: AssetImage(profile.avatarUrl), 
             ),
             const SizedBox(height: 15),
             Text(profile.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
@@ -123,13 +142,16 @@ class _ProfileSelectorScreenState extends State<ProfileSelectorScreen> {
   Widget _buildAddBtn() => GestureDetector(
     onTap: () => Navigator.push(
       context, 
-      MaterialPageRoute(builder: (c) => const ProfileWizardScreen()) // Navigation to Wizard
+      MaterialPageRoute(builder: (c) => const ProfileWizardScreen())
     ),
     child: Container(
       decoration: BoxDecoration(color: Colors.white, border: Border.all(color: Colors.grey.shade200, width: 2), borderRadius: BorderRadius.circular(35)),
       child: const Column(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: [Icon(Icons.add_circle_outline, size: 50, color: Colors.grey), Text("Add Child", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))],
+        children: [
+          Icon(Icons.add_circle_outline, size: 50, color: Colors.grey), 
+          Text("Add Child", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold))
+        ],
       ),
     ),
   );

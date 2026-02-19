@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/child_model.dart';
 import '../models/concept_model.dart';
 import '../models/activity_model.dart';
+import '../models/story_model.dart'; // ADDED: Required for KidStory
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -113,6 +114,16 @@ class DatabaseService {
         .snapshots().map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
+  // --- ADMIN: STORY CRUD ---
+  Future<void> addStory(KidStory story) async => await _db.collection('stories').add(story.toMap());
+  Future<void> deleteStory(String id) async => await _db.collection('stories').doc(id).delete();
+
+  // --- CHILD: FETCH STORIES ---
+  Stream<List<KidStory>> streamStories() {
+    return _db.collection('stories').snapshots().map((l) => 
+        l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
+  }
+
   // --- SPRINT 1: VISIBILITY & GLOBAL MONITORING ---
   Future<void> toggleConceptVisibility(String id, bool status) async {
     await _db.collection('concepts').doc(id).update({'isPublished': status});
@@ -127,6 +138,7 @@ class DatabaseService {
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
+  // --- GLOBAL MONITORING ---
   Stream<QuerySnapshot> streamAllParents() {
     return _db.collection('users').where('role', isEqualTo: 'parent').snapshots();
   }
