@@ -49,7 +49,7 @@ class AccountHelpScreen extends StatelessWidget {
                 child: ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
                   leading: CircleAvatar(
-                    backgroundColor: AppColors.primaryBlue.withOpacity(0.2),
+                    backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.2),
                     child: const Icon(Icons.person, color: AppColors.primaryBlue),
                   ),
                   title: Text(data['email'] ?? 'No Email', 
