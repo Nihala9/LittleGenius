@@ -56,7 +56,9 @@ class _GameContainerState extends State<GameContainer> {
 
   void _loadAIConfig() async {
     final config = await _db.getAIConfig();
-    if (mounted) setState(() => _adminLimit = config['redirectionLimit'] ?? 2);
+    if (mounted) {
+      setState(() => _adminLimit = config['redirectionLimit'] ?? 2);
+    }
   }
 
   @override
@@ -65,23 +67,31 @@ class _GameContainerState extends State<GameContainer> {
     super.dispose();
   }
 
-  // --- NATIVE TRANSLATION ENGINE ---
+  // --- NATIVE TRANSLATION ENGINE (ACTUAL SCRIPTS) ---
   String _getLocalizedIntro(String conceptName, String mode, String lang) {
     if (lang == "Malayalam") {
       switch (mode) {
-        case "Tracing": return "Namukku $conceptName varaykkan padikkam!"; 
-        case "Matching": return "$conceptName, ithu cherupadippikkam!"; 
-        case "AudioQuest": return "Sradhichu kelkkoo, $conceptName evideyanu?"; 
-        case "Puzzle": return "Ithu onnu shariyaakkoo!"; 
-        default: return "Namukku orumichu padikkam!";
+        case "Tracing": return "നമുക്ക് $conceptName വരയ്ക്കാൻ പഠിക്കാം!"; 
+        case "Matching": return "$conceptName, ഇത് യോജിപ്പിക്കാം!"; 
+        case "AudioQuest": return "ശ്രദ്ധിച്ചു കേൾക്കൂ, $conceptName എവിടെയാണ്?"; 
+        case "Puzzle": return "ഇത് ഒന്ന് ശരിയാക്കൂ!"; 
+        default: return "നമുക്ക് ഒരുമിച്ച് പഠിക്കാം!";
       }
     } else if (lang == "Hindi") {
       switch (mode) {
-        case "Tracing": return "Chalo, $conceptName likhna seekhte hain!"; 
-        case "Matching": return "Sahi jodi milao!"; 
-        case "AudioQuest": return "Sun kar batao, $conceptName kahan hai?"; 
-        case "Puzzle": return "Is puzzle ko solve karo!"; 
-        default: return "Chalo khelte hain!";
+        case "Tracing": return "चलो $conceptName लिखना सीखते हैं!"; 
+        case "Matching": return "सही जोड़ी मिलाओ!"; 
+        case "AudioQuest": return "सुन कर बताओ, $conceptName कहाँ है?"; 
+        case "Puzzle": return "इस पहेली को हल करो!"; 
+        default: return "चलो साथ में सीखते हैं!";
+      }
+    } else if (lang == "Arabic") {
+      switch (mode) {
+        case "Tracing": return "لنقم برسم $conceptName!"; 
+        case "Matching": return "قم بتوصيل $conceptName بشكل صحيح!"; 
+        case "AudioQuest": return "استمع جيدا، أين هو $conceptName؟"; 
+        case "Puzzle": return "قم بحل هذا اللغز!"; 
+        default: return "لنلعب معا!";
       }
     }
     return "Let's learn $conceptName with $mode!";
@@ -89,88 +99,84 @@ class _GameContainerState extends State<GameContainer> {
 
   void _startActivity() async {
     String msg = _getLocalizedIntro(widget.concept.name, _currentActivity.activityMode, widget.child.language);
-    // Tiny delay to ensure UI is ready
     Future.delayed(const Duration(milliseconds: 700), () async {
        await _voice.speak(msg, widget.child.language);
     });
   }
 
-  // --- CORE COMPLETION LOGIC ---
   void _onActivityComplete(bool isCorrect) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     if (isCorrect) {
       await SoundService.playSFX('success.mp3');
-      await Future.delayed(const Duration(milliseconds: 600)); // Prevent audio overlap
+      await Future.delayed(const Duration(milliseconds: 600)); 
       _handleSuccess(user.uid);
     } else {
       await SoundService.playSFX('wrong.mp3');
       await Future.delayed(const Duration(milliseconds: 600));
       _localAttempts++;
-      if (_localAttempts >= _adminLimit) _showRedirectionDialog();
-      else _showRetryDialog();
+      // FIXED: Wrapped in curly braces to solve lint error
+      if (_localAttempts >= _adminLimit) {
+        _showRedirectionDialog();
+      } else {
+        _showRetryDialog();
+      }
     }
   }
 
   void _handleSuccess(String uid) async {
-    // 1. Logic Calculations
     double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
     double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
-    
-    // 2. Database Updates
     await _db.updateMastery(uid, widget.child.id, widget.concept.id, newMastery);
     await _db.addStars(uid, widget.child.id, 10);
 
-    // 3. Badge Unlock Check (If Mastery hits 80%)
     if (newMastery >= 0.8 && !widget.child.badges.contains(widget.concept.category)) {
       await _db.unlockBadge(uid, widget.child.id, widget.concept.category);
     }
 
-    // 4. Celebration Sequence
     setState(() => _isCelebrating = true);
     _confettiController.play();
     
-    String winMsg = _getLocalizedText("Superstar! You did it!", "Samarthan! Nannayi cheithu!", "Shabash! Bahut badhiya!");
+    String winMsg = _getLocalizedText("Superstar! You did it!", "സമർത്ഥൻ! നന്നായി ചെയ്തു!", "शाबाश! बहुत बढ़िया!");
     await _voice.speak(winMsg, widget.child.language);
 
     _showPopDialog(
-      title: _getLocalizedText("AMAZING!", "Sammaanam!", "Shaandaar!"),
-      message: _getLocalizedText("You earned 10 Stars!", "Ninnakku 10 nakshatrangal labhichu!", "Aapko 10 sitare mile!"),
-      buttonText: _getLocalizedText("Finish Level", "Adutha Ghattam", "Agla Level"),
+      title: _getLocalizedText("AMAZING!", "സമ്മാനം!", "शानदार!"),
+      message: _getLocalizedText("You earned 10 Stars!", "നിനക്ക് 10 നക്ഷത്രങ്ങൾ ലഭിച്ചു!", "आपको 10 सितारे मिले!"),
+      buttonText: _getLocalizedText("Finish Level", "അടുത്ത ഘട്ടം", "अगला लेवल"),
       lottieAsset: 'assets/animations/trophy.json', 
       iconColor: Colors.amber,
       onPressed: () { 
-        Navigator.pop(context); // Close Popup
-        Navigator.pop(context); // Return to Map
+        Navigator.pop(context); 
+        Navigator.pop(context); 
       }, 
     );
   }
 
   void _showRetryDialog() {
     _showPopDialog(
-      title: _getLocalizedText("TRY AGAIN", "Sradhikkuka", "Koshish Karo"),
-      message: _getLocalizedText("Give it one more try, buddy!", "Onnu koodi sramikkoo!", "Ek baar aur koshish karo!"),
-      buttonText: _getLocalizedText("Retry", "Veendum", "Dobara"),
+      title: _getLocalizedText("TRY AGAIN", "ശ്രദ്ധിക്കുക", "कोशिश करो"),
+      message: _getLocalizedText("Give it one more try, buddy!", "ഒന്ന് കൂടി ശ്രമിക്കൂ!", "एक बार और कोशिश करो!"),
+      buttonText: _getLocalizedText("Retry", "വീണ്ടും", "दोबारा"),
       icon: Icons.refresh_rounded,
       iconColor: AppColors.childOrange,
       onPressed: () { 
         Navigator.pop(context); 
-        setState(() {}); // Rebuild activity locally
+        setState(() {}); 
       },
     );
   }
 
   void _showRedirectionDialog() async {
     final plan = _aiLogic.getRedirectionPlan(_currentActivity.activityMode, 0.2);
-    
-    String speakMsg = _getLocalizedText("Let's try a new game!", "Puthiya kali kalikkam!", "Naya game khelte hain!");
+    String speakMsg = _getLocalizedText("Let's try a new game!", "പുതിയ കളി കളിക്കാം!", "नया गेम खेलते हैं!");
     await _voice.speak(speakMsg, widget.child.language);
 
     _showPopDialog(
-      title: _getLocalizedText("TRY THIS!", "Puthiya Kali!", "Ye Try Karo!"),
-      message: plan['message'],
-      buttonText: _getLocalizedText("Start!", "Thudangam", "Shuru Karein"),
+      title: _getLocalizedText("TRY THIS!", "പുതിയ കളി!", "ये ट्राई करो!"),
+      message: _getLocalizedText("This might be more fun!", "ഇത് കൂടുതൽ രസമുള്ളതാണ്!", "ये ज्यादा मजेदार होगा!"),
+      buttonText: _getLocalizedText("Start!", "തുടങ്ങാം", "शुरू करें"),
       icon: Icons.auto_awesome_rounded,
       iconColor: AppColors.teal,
       onPressed: () { 
@@ -189,7 +195,6 @@ class _GameContainerState extends State<GameContainer> {
   void _switchActivityMode(String newMode) {
     setState(() {
       _localAttempts = 0;
-      // Unique ID ensures ValueKey forces a full UI rebuild
       _currentActivity = Activity(
         id: 'redirect_${DateTime.now().millisecondsSinceEpoch}', 
         conceptId: widget.concept.id, 
@@ -249,16 +254,13 @@ class _GameContainerState extends State<GameContainer> {
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          // THE GAME VIEW
           AbsorbPointer(
             absorbing: _isCelebrating, 
             child: Center(
-              key: ValueKey(_currentActivity.id), // CRITICAL: Rebuilds on redirection
+              key: ValueKey(_currentActivity.id), 
               child: _buildGameView()
             )
           ),
-
-          // OVERLAYS
           Align(
             alignment: Alignment.topCenter, 
             child: ConfettiWidget(
@@ -267,14 +269,11 @@ class _GameContainerState extends State<GameContainer> {
               colors: const [Colors.green, Colors.blue, Colors.pink, Colors.orange, Colors.yellow],
             )
           ),
-
-          // HUD ELEMENTS
           Positioned(
             bottom: 20, 
             left: 20, 
             child: InteractiveBuddy(height: 100, language: widget.child.language)
           ),
-
           Positioned(
             top: 50, 
             right: 20, 

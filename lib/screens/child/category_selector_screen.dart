@@ -113,7 +113,7 @@ class CategorySelectorScreen extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Image.asset(cat['imagePath'] ?? 'assets/icons/category/c1.png', height: 75),
+                              Image.asset(cat['imagePath'] ?? 'assets/icons/category/c1.png', height: 95),
                               const SizedBox(height: 20),
                               Text(
                                 cat['name'], 

@@ -3,10 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/database_service.dart';
 import '../../models/child_model.dart';
+import '../../models/concept_model.dart'; // Added
 import '../../utils/app_colors.dart';
 import 'child_insights_screen.dart';
 import 'profile_wizard_screen.dart';
-import 'screen_time_settings.dart'; // ADDED IMPORT
+import 'screen_time_settings.dart';
 
 class ParentDashboard extends StatelessWidget {
   final ChildProfile? specificChild;
@@ -17,8 +18,7 @@ class ParentDashboard extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Delete Profile?", 
-            style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+        title: const Text("Delete Profile?", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
         content: Text("Are you sure you want to delete ${child.name}? This will permanently erase all progress."),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
@@ -48,8 +48,7 @@ class ParentDashboard extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.lemonChiffon,
       appBar: AppBar(
-        title: const Text("PARENTAL CONTROL", 
-            style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w900, fontSize: 14)),
+        title: const Text("PARENTAL CONTROL", style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w900, fontSize: 14)),
         backgroundColor: Colors.white,
         foregroundColor: AppColors.ultraViolet,
         elevation: 0,
@@ -82,10 +81,12 @@ class ParentDashboard extends StatelessWidget {
               _buildIdentityCard(context, activeChild),
               const SizedBox(height: 30),
               
-              const Text("CORE PROGRESS", 
+              const Text("SUBJECT WISE PERFORMANCE", 
                   style: TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
               const SizedBox(height: 15),
-              _buildStats(activeChild),
+              
+              // NEW REPLACED SECTION: Category-wise Breakdown
+              _buildCategoryBreakdown(db, activeChild),
               
               const SizedBox(height: 30),
               const Text("MANAGEMENT", 
@@ -99,8 +100,6 @@ class ParentDashboard extends StatelessWidget {
                 Icons.auto_graph, 
                 () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChildInsightsScreen(child: activeChild))),
               ),
-
-              // --- NEW SCREEN TIME TILE ---
               _buildActionTile(
                 context, 
                 "Screen Time Settings", 
@@ -108,7 +107,6 @@ class ParentDashboard extends StatelessWidget {
                 Icons.timer_rounded, 
                 () => Navigator.push(context, MaterialPageRoute(builder: (c) => ScreenTimeSettingsScreen(child: activeChild))),
               ),
-              
               _buildActionTile(
                 context, 
                 "Switch Child Profile", 
@@ -121,7 +119,6 @@ class ParentDashboard extends StatelessWidget {
                   Navigator.pushNamedAndRemoveUntil(context, '/profile_selector', (r) => false);
                 }
               ),
-
               _buildActionTile(
                 context, 
                 "Delete Profile", 
@@ -130,9 +127,7 @@ class ParentDashboard extends StatelessWidget {
                 () => _confirmDelete(context, user.uid, activeChild),
                 isRed: true,
               ),
-
               const Divider(height: 40),
-
               _buildActionTile(
                 context, 
                 "Logout Parent Account", 
@@ -154,20 +149,66 @@ class ParentDashboard extends StatelessWidget {
     );
   }
 
+  // --- NEW UI: DETAILED CATEGORY BREAKDOWN ---
+  Widget _buildCategoryBreakdown(DatabaseService db, ChildProfile child) {
+    return StreamBuilder<List<Concept>>(
+      stream: db.streamConcepts(), // Fetch all concepts to group scores by category
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const Center(child: LinearProgressIndicator());
+
+        final allConcepts = snapshot.data!;
+        // 1. Group concepts by category name
+        Map<String, List<String>> categoryToConceptIds = {};
+        for (var concept in allConcepts) {
+          categoryToConceptIds.putIfAbsent(concept.category, () => []).add(concept.id);
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
+          child: Column(
+            children: [
+              // 2. Loop through each category and calculate average for THIS child
+              ...categoryToConceptIds.entries.map((entry) {
+                String categoryName = entry.key;
+                List<String> conceptIds = entry.value;
+
+                // Find child's scores for concepts in this specific category
+                double categorySum = 0;
+                int scoresFound = 0;
+
+                for (var cid in conceptIds) {
+                  if (child.masteryScores.containsKey(cid)) {
+                    categorySum += child.masteryScores[cid]!;
+                    scoresFound++;
+                  }
+                }
+
+                // If child hasn't played this category, show as 0%
+                double average = scoresFound == 0 ? 0 : categorySum / scoresFound;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 15.0),
+                  child: _statRow(categoryName, average),
+                );
+              }),
+              const Divider(height: 30),
+              _statRow("Total Star Progress", (child.totalStars / 1000).clamp(0.0, 1.0), 
+                  label: "${child.totalStars} / 1000 Stars"),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildIdentityCard(BuildContext context, ChildProfile child) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppColors.ultraViolet,
-        borderRadius: BorderRadius.circular(30),
-      ),
+      decoration: BoxDecoration(color: AppColors.ultraViolet, borderRadius: BorderRadius.circular(30)),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 35, 
-            backgroundColor: Colors.white,
-            backgroundImage: AssetImage(child.avatarUrl),
-          ),
+          CircleAvatar(radius: 35, backgroundColor: Colors.white, backgroundImage: AssetImage(child.avatarUrl)),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -180,25 +221,8 @@ class ParentDashboard extends StatelessWidget {
           ),
           IconButton(
             icon: const Icon(Icons.edit_square, color: AppColors.lemonChiffon),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(
-                builder: (c) => ProfileWizardScreen(existingChild: child))),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ProfileWizardScreen(existingChild: child))),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildStats(ChildProfile child) {
-    double avg = child.masteryScores.isEmpty ? 0 : 
-        child.masteryScores.values.reduce((a, b) => a + b) / child.masteryScores.length;
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
-      child: Column(
-        children: [
-          _statRow("General Mastery", avg),
-          const Divider(height: 30),
-          _statRow("Star Progress", (child.totalStars / 1000).clamp(0.0, 1.0), label: "${child.totalStars} Stars"),
         ],
       ),
     );
@@ -210,16 +234,16 @@ class ParentDashboard extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark)),
+            Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 13)),
             Text(label ?? "${(val * 100).toInt()}%", style: const TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
           child: LinearProgressIndicator(
             value: val,
-            minHeight: 10,
+            minHeight: 8,
             backgroundColor: AppColors.lemonChiffon,
             valueColor: const AlwaysStoppedAnimation<Color>(AppColors.ultraViolet),
           ),

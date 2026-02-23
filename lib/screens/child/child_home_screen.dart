@@ -268,7 +268,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            asset != null ? Image.asset(asset, height: 60) : const Icon(Icons.auto_awesome, size: 40),
+            asset != null ? Image.asset(asset, height: 80) : const Icon(Icons.auto_awesome, size: 40),
             const SizedBox(height: 10),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.childNavy)),
           ],
