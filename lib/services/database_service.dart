@@ -1,9 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/child_model.dart';
 import '../models/concept_model.dart';
 import '../models/activity_model.dart';
-import '../models/story_model.dart'; // ADDED: Required for KidStory
+import '../models/story_model.dart'; 
 
 class DatabaseService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -56,9 +57,18 @@ class DatabaseService {
   }
 
   Future<void> updatePreferredMode(String childId, String mode) async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid != null) {
-      await _db.collection('parents').doc(uid).collection('profiles').doc(childId).update({'preferredMode': mode});
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid != null) {
+        await _db.collection('parents')
+            .doc(uid)
+            .collection('profiles')
+            .doc(childId)
+            .update({'preferredMode': mode});
+        debugPrint("DB Service: Updated preferredMode to $mode");
+      }
+    } catch (e) {
+      debugPrint("DB Service Error: $e");
     }
   }
 
@@ -101,8 +111,11 @@ class DatabaseService {
   // --- ADMIN CONTENT: ACTIVITY CRUD ---
   Future<void> addActivity(Activity a) async {
     await _db.collection('activities').add({
-      'conceptId': a.conceptId, 'title': a.title, 'activityMode': a.activityMode,
-      'language': a.language, 'difficulty': a.difficulty, 'isPublished': false,
+      'conceptId': a.conceptId, 
+      'title': a.title, 
+      'activityMode': a.activityMode,
+      'difficulty': a.difficulty, 
+      'imageUrl': a.imageUrl,
     });
   }
 
@@ -118,13 +131,12 @@ class DatabaseService {
   Future<void> addStory(KidStory story) async => await _db.collection('stories').add(story.toMap());
   Future<void> deleteStory(String id) async => await _db.collection('stories').doc(id).delete();
 
-  // --- CHILD: FETCH STORIES ---
   Stream<List<KidStory>> streamStories() {
     return _db.collection('stories').snapshots().map((l) => 
         l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- SPRINT 1: VISIBILITY & GLOBAL MONITORING ---
+  // --- VISIBILITY & GLOBAL MONITORING ---
   Future<void> toggleConceptVisibility(String id, bool status) async {
     await _db.collection('concepts').doc(id).update({'isPublished': status});
   }
@@ -138,7 +150,6 @@ class DatabaseService {
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- GLOBAL MONITORING ---
   Stream<QuerySnapshot> streamAllParents() {
     return _db.collection('users').where('role', isEqualTo: 'parent').snapshots();
   }
@@ -160,5 +171,49 @@ class DatabaseService {
   Future<Map<String, String>> getConceptNames() async {
     var snap = await _db.collection('concepts').get();
     return {for (var d in snap.docs) d.id: d.data()['name'] ?? 'Lesson'};
+  }
+
+  // --- REAL-TIME SCREEN TIME TRACKING ---
+  Future<void> updateUsageHeartbeat(String childId) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      final docRef = _db.collection('parents').doc(uid).collection('profiles').doc(childId);
+      final doc = await docRef.get();
+      
+      if (doc.exists) {
+        final data = doc.data()!;
+        DateTime now = DateTime.now();
+        
+        // Handle potential null date
+        DateTime lastDate = data['lastSessionDate'] != null 
+            ? (data['lastSessionDate'] as Timestamp).toDate() 
+            : DateTime.now().subtract(const Duration(days: 1));
+
+        // CHECK IF IT'S A NEW DAY (Reset logic)
+        bool isNewDay = lastDate.day != now.day || 
+                        lastDate.month != now.month || 
+                        lastDate.year != now.year;
+
+        if (isNewDay) {
+          // It's a new day! Reset to 1 minute used.
+          await docRef.update({
+            'minutesSpentToday': 1,
+            'lastSessionDate': Timestamp.fromDate(now),
+          });
+          debugPrint("Usage: New day detected. Timer reset for $childId");
+        } else {
+          // Same day: Use Firestore increment to be precise
+          await docRef.update({
+            'minutesSpentToday': FieldValue.increment(1),
+            'lastSessionDate': Timestamp.fromDate(now),
+          });
+          debugPrint("Usage: +1 minute recorded for $childId");
+        }
+      }
+    } catch (e) {
+      debugPrint("Heartbeat Error: $e");
+    }
   }
 }

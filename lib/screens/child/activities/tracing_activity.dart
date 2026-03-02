@@ -77,19 +77,33 @@ class _TracingActivityState extends State<TracingActivity> with TickerProviderSt
     });
   }
 
+  // Inside _TracingActivityState
+
   void _speakLocalized(String type) {
     String msg = "";
     if (widget.language == "Malayalam") {
       switch (type) {
-        case "idle": msg = "Namukku orumichu varaykkam!"; break; // Let's draw together
-        case "wrong": msg = "Oh-oh! Varayil thudarku!"; break; // Oh-oh stay on the lines
-        case "success": msg = "Nannayi cheithu!"; break; // Well done
+        case "idle": msg = "നമുക്ക് ഒരുമിച്ച് വരയ്ക്കാം!"; break;
+        case "wrong": msg = "ശ്രദ്ധിക്കുക! വരയിൽ തുടരുക."; break;
+        case "success": msg = "നന്നായി ചെയ്തു!"; break;
+      }
+    } else if (widget.language == "Hindi") {
+      switch (type) {
+        case "idle": msg = "तैयार हैं? चलो साथ में ड्रा करते हैं!"; break;
+        case "wrong": msg = "ओह! लाइन पर रहें!"; break;
+        case "success": msg = "बहुत बढ़िया!"; break;
+      }
+    } else if (widget.language == "Arabic") {
+      switch (type) {
+        case "idle": msg = "هل أنت مستعد؟ لنرسم معاً!"; break;
+        case "wrong": msg = "أوه! ابقَ داخل الخطوط!"; break;
+        case "success": msg = "عمل رائع!"; break;
       }
     } else {
       switch (type) {
-        case "idle": msg = "Need help? Follow the glowing dot!"; break;
-        case "wrong": msg = "Oh-oh! Try to stay on the path!"; break;
-        case "success": msg = "Great tracing!"; break;
+        case "idle": msg = "Ready? Let's draw together!"; break;
+        case "wrong": msg = "Oh-oh! Stay on the lines!"; break;
+        case "success": msg = "Great job!"; break;
       }
     }
     _voice.speak(msg, widget.language);

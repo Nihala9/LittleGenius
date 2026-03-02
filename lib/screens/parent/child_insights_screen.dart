@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/child_model.dart';
 import '../../services/database_service.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/parent_scaffold.dart';
 
 class ChildInsightsScreen extends StatefulWidget {
   final ChildProfile child;
@@ -22,20 +23,17 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     _loadData();
   }
 
-  // Load human-readable names for the concept IDs (e.g., "id123" -> "Letter A")
   void _loadData() async {
     _conceptNames = await _db.getConceptNames();
     if (mounted) setState(() => _isLoading = false);
   }
 
-  // AI Logic: Categorize the child's current level
   String _getMasteryLevel(double score) {
     if (score >= 0.8) return "Mastery Level";
     if (score >= 0.5) return "Improving Fast";
     return "Needs Practice";
   }
 
-  // AI Insight Generator: Explains strengths and weaknesses
   String _getAIInsight(String conceptId, double score) {
     String name = _conceptNames[conceptId] ?? "this lesson";
     if (score >= 0.8) {
@@ -43,7 +41,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     } else if (score >= 0.4) {
       return "Good progress with $name. The AI has noted occasional hesitation and is using more ${widget.child.preferredMode} activities to reinforce the shape.";
     } else {
-      return "Struggling with $name. The AI engine has detected a pattern of errors and is slowing down the pace to build a stronger foundation.";
+      return "Struggling with $name. The AI engine is slowing down the pace to build a stronger foundation.";
     }
   }
 
@@ -52,15 +50,11 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     final scores = widget.child.masteryScores;
     final hasData = scores.isNotEmpty;
 
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FE),
-      appBar: AppBar(
-        title: Text("${widget.child.name}'s Report"),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.childNavy,
-        elevation: 0,
-        centerTitle: true,
-      ),
+    // Use the ParentScaffold to provide the Sidebar menu
+    return ParentScaffold(
+      title: "Learning Reports",
+      activeRoute: "reports", // Highlights 'Learning Reports' in sidebar
+      child: widget.child,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : !hasData
@@ -83,7 +77,6 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
                       const SizedBox(height: 15),
                       
-                      // Map the mastery scores from the Child Model to UI Tiles
                       ...scores.entries.map((entry) => _buildReportTile(entry.key, entry.value)),
                       
                       const SizedBox(height: 40),
@@ -93,7 +86,6 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     );
   }
 
-  // --- UI: TOP PROGRESS SUMMARY ---
   Widget _buildOverallProgressCard() {
     double totalMastery = widget.child.masteryScores.values.reduce((a, b) => a + b) / 
                           widget.child.masteryScores.length;
@@ -103,7 +95,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
       decoration: BoxDecoration(
         color: AppColors.ultraViolet,
         borderRadius: BorderRadius.circular(30),
-        boxShadow: [BoxShadow(color: AppColors.ultraViolet.withValues(alpha: 0.3), blurRadius: 15, offset: const Offset(0, 8))],
+        boxShadow: [BoxShadow(color: AppColors.ultraViolet.withOpacity(0.3), blurRadius: 15, offset: const Offset(0, 8))],
       ),
       child: Row(
         children: [
@@ -118,7 +110,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text("Overall Achievement", style: TextStyle(color: Colors.white70, fontSize: 13)),
-                Text("${(totalMastery * 100).toInt()}% Total Mastery", 
+                Text("${(totalMastery * 100).toInt()}% Mastery", 
                     style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
                 Text(_getMasteryLevel(totalMastery).toUpperCase(), 
@@ -131,14 +123,13 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     );
   }
 
-  // --- UI: AI GENERATED INSIGHTS ---
   Widget _buildTutorObservationCard() {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: const Color(0xFFFFF4E5),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.withValues(alpha: 0.2)),
+        border: Border.all(color: Colors.orange.withOpacity(0.2)),
       ),
       child: Row(
         children: [
@@ -151,7 +142,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
                 const Text("Learning Style Insight", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
                 const SizedBox(height: 4),
                 Text(
-                  "The AI has observed that ${widget.child.name} is a strong '${widget.child.preferredMode}' learner. We are optimizing future tasks to match this style.",
+                  "The AI has observed that ${widget.child.name} is a strong '${widget.child.preferredMode}' learner. Tasks are being optimized for this style.",
                   style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
                 ),
               ],
@@ -162,7 +153,6 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     );
   }
 
-  // --- UI: ACTIVITY WISE PERFORMANCE REPORT ---
   Widget _buildReportTile(String conceptId, double score) {
     String name = _conceptNames[conceptId] ?? "Lesson Item";
     Color progressColor = score >= 0.8 ? AppColors.childGreen : (score >= 0.4 ? AppColors.childBlue : Colors.redAccent);
@@ -173,7 +163,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -196,7 +186,6 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
             ),
           ),
           const SizedBox(height: 15),
-          // AI Interpretation of the data
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -225,7 +214,7 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
           const Text("Waiting for data...", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 50, vertical: 10),
-            child: Text("Once your child completes an activity, the AI will generate a detailed performance report here.",
+            child: Text("Performance reports will appear here once an activity is completed.",
               textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
           ),
         ],

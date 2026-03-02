@@ -3,10 +3,13 @@ import 'dart:math';
 class AIService {
   static const double pSlip = 0.1;  
   static const double pGuess = 0.2; 
-  static const double pTransit = 0.1;
+  static const double pTransit = 0.25;
 
   // Bayesian Knowledge Tracing
   double calculateNewMastery(double currentMastery, bool isCorrect) {
+    // If it's the very first win, give them a boost
+    if (currentMastery == 0 && isCorrect) return 0.3; 
+
     double pKnow;
     if (isCorrect) {
       pKnow = (currentMastery * (1 - pSlip)) / 

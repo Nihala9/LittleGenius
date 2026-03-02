@@ -49,11 +49,7 @@ class _ProfileSelectorScreenState extends State<ProfileSelectorScreen> {
       case "Hindi":
         return "Namaste $name! Chalo khelte hain!"; 
       case "Arabic":
-        return "Marhaban $name! Hayya bina nal'ab!"; 
-      case "Spanish":
-        return "¡Hola $name! ¿Listo para jugar?"; 
-      case "French":
-        return "Bonjour $name! Prêt à jouer?"; 
+        return "مرحباً $name! هل أنت مستعد للمغامرة؟"; // Hello [Name]! Ready for adventure? 
       default:
         return "Hi $name! Ready for an adventure?";
     }

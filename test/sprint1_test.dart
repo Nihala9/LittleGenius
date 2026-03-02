@@ -14,7 +14,7 @@ class MockDatabaseService extends Mock implements DatabaseService {}
 void main() {
   late MockDatabaseService mockDb;
 
-  // 3. REGISTER FALLBACKS: This is the fix for your error
+  // 3. REGISTER FALLBACKS
   setUpAll(() {
     registerFallbackValue(FakeConcept());
     registerFallbackValue(FakeActivity());
@@ -26,58 +26,70 @@ void main() {
 
   group('LittleGenius - Sprint 1 (Admin & Content Management)', () {
     
-    // TEST 1: ADDING ACTIVITY (TC_S1_02)
+    // TEST 1: ADDING CONCEPT (TC_S1_02)
     test('Admin should successfully add a new concept', () async {
       final concept = Concept(id: '1', name: 'Letter A', category: 'Alphabets', order: 1);
       
-      // Setup mock behavior
       when(() => mockDb.addConcept(any())).thenAnswer((_) async => {});
 
-      // Perform action
       await mockDb.addConcept(concept);
 
-      // Verify result
       verify(() => mockDb.addConcept(any())).called(1);
     });
 
-    // TEST 2: PERFORMANCE CONFIG (TC_S1_03)
+    // TEST 2: SEQUENCE ORDER (TC_S1_03)
     test('Concept should retain correct sequence order', () {
       final concept = Concept(id: '1', name: 'Letter A', category: 'Alphabets', order: 5);
       expect(concept.order, 5); 
     });
 
-    // TEST 3: MULTILINGUAL TAGGING (TC_S1_04)
-    test('Activity should save correct language tags', () async {
+    // TEST 3: UNIVERSAL MODE TAGGING (TC_S1_04 - UPDATED)
+    test('Activity should save correct mode and image metadata', () async {
+      // FIX: Removed 'language' parameter as it is now removed from the model
       final activity = Activity(
         id: '1', 
         conceptId: 'A', 
         title: 'Tracing A', 
         activityMode: 'Tracing', 
-        language: 'Malayalam', 
-        difficulty: 1
+        difficulty: 1,
+        imageUrl: 'https://firebasestorage.com/image.png' // New Field
       );
 
       when(() => mockDb.addActivity(any())).thenAnswer((_) async => {});
 
       await mockDb.addActivity(activity);
       
-      // Verify that the language was correctly assigned in the model
-      expect(activity.language, "Malayalam");
+      // Verify the new metadata logic
+      expect(activity.activityMode, "Tracing");
+      expect(activity.imageUrl, isNotNull);
     });
 
     // TEST 4: PUBLISH/VISIBILITY (TC_S1_05)
     test('Toggling visibility should update global status', () async {
       const String id = "lesson_123";
       
-      // Test Unpublish logic
-      when(() => mockDb.toggleConceptVisibility(id, false)).thenAnswer((_) async => {});
+      when(() => mockDb.toggleConceptVisibility(id, any())).thenAnswer((_) async => {});
+      
+      // Test Unpublish
       await mockDb.toggleConceptVisibility(id, false);
       verify(() => mockDb.toggleConceptVisibility(id, false)).called(1);
 
-      // Test Publish logic
-      when(() => mockDb.toggleConceptVisibility(id, true)).thenAnswer((_) async => {});
+      // Test Publish
       await mockDb.toggleConceptVisibility(id, true);
       verify(() => mockDb.toggleConceptVisibility(id, true)).called(1);
+    });
+
+    // TEST 5: NEW ACTIVITY TYPE SUPPORT (SCRATCH CARD)
+    test('Activity Model should support new Scratch Card type', () {
+      final activity = Activity(
+        id: '2', 
+        conceptId: 'Lion', 
+        title: 'Lion Scratch', 
+        activityMode: 'Scratch Card', 
+        difficulty: 1
+      );
+      
+      expect(activity.activityMode, 'Scratch Card');
     });
   });
 }

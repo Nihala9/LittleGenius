@@ -1,13 +1,14 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:animate_do/animate_do.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // Added for UID
+import 'package:firebase_auth/firebase_auth.dart'; 
 import '../../models/child_model.dart';
 import '../../models/concept_model.dart';
 import '../../models/activity_model.dart';
 import '../../services/database_service.dart';
 import '../../services/ai_engine.dart';
 import '../../services/sound_service.dart';
+import '../../services/voice_service.dart';
 import '../../utils/app_colors.dart';
 import 'game_container.dart';
 
@@ -25,15 +26,15 @@ class LearningMapScreen extends StatelessWidget {
 
     return Scaffold(
       body: StreamBuilder<ChildProfile>(
-        // --- STREAM 1: Listen to the Child's Live Progress ---
+        // --- LIVE STREAM: Always stay synced with Firestore ---
         stream: db.streamSingleChild(user!.uid, child.id),
         builder: (context, childSnapshot) {
-          // Use live data if available, otherwise fallback to the initial object
+          // IMPORTANT: liveChild contains the latest 'masteryScores' and 'preferredMode'
           final liveChild = childSnapshot.data ?? child;
 
           return Stack(
             children: [
-              // 1. BACKGROUND
+              // 1. DYNAMIC BACKGROUND
               Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -44,16 +45,15 @@ class LearningMapScreen extends StatelessWidget {
                 ),
               ),
 
-              // 2. SCROLLABLE FLOWING PATH
+              // 2. SCROLLABLE ADVENTURE PATH
               StreamBuilder<List<Concept>>(
-                // --- STREAM 2: Listen to the Levels in this category ---
                 stream: db.streamPublishedConceptsByCategory(category),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
                   final concepts = snapshot.data!;
                   
-                  // Logic to find current level based on LIVE data
-                  int currentLevelIdx = concepts.indexWhere((c) => (liveChild.masteryScores[c.id] ?? 0.0) < 0.8);
+                  // Identify current level (First level with mastery < 0.5)
+                  int currentLevelIdx = concepts.indexWhere((c) => (liveChild.masteryScores[c.id] ?? 0.0) < 0.5);
                   if (currentLevelIdx == -1) currentLevelIdx = concepts.length - 1;
 
                   return ListView.builder(
@@ -61,8 +61,9 @@ class LearningMapScreen extends StatelessWidget {
                     itemCount: concepts.length,
                     itemBuilder: (context, index) {
                       final concept = concepts[index];
-                      // USE LIVE MASTERY SCORES
                       double mastery = liveChild.masteryScores[concept.id] ?? 0.0;
+                      
+                      // LOGIC: Next level stays locked until current level has 2 Stars (0.5)
                       bool isLocked = index > currentLevelIdx;
                       bool isCurrent = index == currentLevelIdx;
 
@@ -74,15 +75,27 @@ class LearningMapScreen extends StatelessWidget {
                         child: Stack(
                           clipBehavior: Clip.none,
                           children: [
+                            // Path Painter
                             if (index < concepts.length - 1)
                               Positioned.fill(
                                 child: CustomPaint(
                                   painter: FlowingPathPainter(startX: currentAlign, endX: nextAlign),
                                 ),
                               ),
+                            
+                            // 3D Level Node
                             Align(
                               alignment: Alignment(currentAlign, 0),
-                              child: _buildHighFidelityNode(context, liveChild, concept, index + 1, mastery, isLocked, isCurrent, ai),
+                              child: _buildHighFidelityNode(
+                                context, 
+                                liveChild, // Pass fresh data
+                                concept, 
+                                index + 1, 
+                                mastery, 
+                                isLocked, 
+                                isCurrent, 
+                                ai
+                              ),
                             ),
                           ],
                         ),
@@ -99,25 +112,56 @@ class LearningMapScreen extends StatelessWidget {
     );
   }
 
-  // --- Pass liveChild to the node so it stays updated ---
-  Widget _buildHighFidelityNode(BuildContext context, ChildProfile liveChild, Concept concept, int num, double mastery, bool isLocked, bool isCurrent, AIEngine ai) {
+  Widget _buildHighFidelityNode(
+    BuildContext context, 
+    ChildProfile liveChild, 
+    Concept concept, 
+    int num, 
+    double mastery, 
+    bool isLocked, 
+    bool isCurrent, 
+    AIEngine ai
+  ) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // 1. Stars (Based on LIVE mastery)
         _buildGlassyStarArc(mastery, isLocked),
+
+        // 2. 3D Interaction Button
         GestureDetector(
-          onTap: isLocked ? null : () async {
+          onTap: isLocked ? () {
+            // --- AI LOCK GUIDANCE ---
+            SoundService.playSFX('wrong.mp3');
+            String msg = "";
+            if (liveChild.language == "Malayalam") {
+              msg = "അടുത്ത ഘട്ടം തുറക്കാൻ രണ്ട് നക്ഷത്രങ്ങൾ വേണം. ഈ പാഠം ഒന്നുകൂടി കളിക്കൂ!";
+            } else if (liveChild.language == "Hindi") {
+              msg = "अगला लेवल खोलने के लिए आपको दो सितारों की जरूरत है। इसे फिर से खेलें!";
+            } else if (liveChild.language == "Arabic") {
+              msg = "لفتح المستوى التالي، تحتاج إلى نجمتين. العب هذا الدرس مرة أخرى!";
+            } else {
+              msg = "Play this level again to get 2 stars and unlock the next path!";
+            }
+            VoiceService().speak(msg, liveChild.language);
+          } : () async {
             SoundService.playSFX('pop.mp3');
+            
+            // --- AI SHUFFLE ENGINE ---
+            // This now uses LIVE data to decide if it should shuffle or not
             Activity? act = await ai.getPersonalizedActivity(liveChild, concept.id);
-            if (!context.mounted) return;
-            if (act != null) {
-              Navigator.push(context, MaterialPageRoute(builder: (c) => GameContainer(child: liveChild, concept: concept, activity: act)));
+            
+            if (context.mounted && act != null) {
+              Navigator.push(context, MaterialPageRoute(
+                builder: (c) => GameContainer(child: liveChild, concept: concept, activity: act)
+              ));
             }
           },
           child: Stack(
             alignment: Alignment.center,
             clipBehavior: Clip.none,
             children: [
+              // 3D Base
               Container(
                 width: 95, height: 75,
                 margin: const EdgeInsets.only(top: 12),
@@ -127,6 +171,7 @@ class LearningMapScreen extends StatelessWidget {
                   boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10, offset: const Offset(0, 8))],
                 ),
               ),
+              // Interaction Surface
               Container(
                 width: 82, height: 68,
                 decoration: BoxDecoration(
@@ -145,6 +190,7 @@ class LearningMapScreen extends StatelessWidget {
                     : Text("$num", style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900, shadows: [Shadow(blurRadius: 4, color: Colors.black26)])),
                 ),
               ),
+              // Mascot Indicator
               if (isCurrent)
                 Positioned(
                   top: -55,
@@ -156,7 +202,10 @@ class LearningMapScreen extends StatelessWidget {
             ],
           ),
         ),
+        
         const SizedBox(height: 10),
+
+        // 3. Concept Name Label
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
@@ -171,7 +220,7 @@ class LearningMapScreen extends StatelessWidget {
   }
 
   Widget _buildGlassyStarArc(double mastery, bool isLocked) {
-    int count = isLocked ? 0 : (mastery >= 0.8 ? 3 : (mastery >= 0.5 ? 2 : (mastery >= 0.2 ? 1 : 0)));
+    int count = isLocked ? 0 : (mastery >= 0.8 ? 3 : (mastery >= 0.5 ? 2 : (mastery >= 0.3 ? 1 : 0)));
     return SizedBox(
       width: 130, height: 40,
       child: Stack(
@@ -195,7 +244,7 @@ class LearningMapScreen extends StatelessWidget {
           child: Icon(
             Icons.star_rounded,
             size: 38,
-            color: active ? Colors.amber : const Color.fromARGB(255, 130, 129, 129).withOpacity(0.6),
+            color: active ? Colors.amber : const Color.fromARGB(255, 169, 168, 168).withOpacity(0.6),
             shadows: active ? [const Shadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, 4))] : null,
           ),
         ),

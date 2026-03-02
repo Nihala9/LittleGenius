@@ -1,8 +1,9 @@
 import 'dart:async';
+import 'dart:math'; // Added for shuffling math numbers
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/child_model.dart';
-import '../../models/story_model.dart'; // Added
+import '../../models/story_model.dart';
 import '../../utils/app_colors.dart';
 import '../../services/database_service.dart';
 import '../../services/voice_service.dart';
@@ -14,7 +15,7 @@ import 'sleep_mode_screen.dart';
 import 'category_selector_screen.dart';
 import 'bubble_pop_game.dart';
 import 'stories/story_player_screen.dart';
-import 'stories/story_library_screen.dart'; // Added
+import 'stories/story_library_screen.dart';
 
 class ChildHomeScreen extends StatefulWidget {
   final ChildProfile child;
@@ -28,30 +29,29 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   int _bottomNavIndex = 0;
   final VoiceService _voice = VoiceService();
   final DatabaseService _db = DatabaseService();
-  
-  late DateTime _sessionStartTime;
-  int _minutesPlayed = 0;
-  bool _isLocked = false;
-  Timer? _timer;
+  Timer? _heartbeatTimer;
 
   @override
   void initState() {
     super.initState();
-    _sessionStartTime = DateTime.now();
-    _startSessionTimer();
+    _startUsageTracking();
   }
 
   @override
   void dispose() {
-    _timer?.cancel();
+    _heartbeatTimer?.cancel();
     super.dispose();
   }
 
-  void _startSessionTimer() {
-    _timer = Timer.periodic(const Duration(seconds: 30), (timer) {
-      if (mounted && !_isLocked) {
-        setState(() {
-          _minutesPlayed = DateTime.now().difference(_sessionStartTime).inMinutes;
+  void _startUsageTracking() {
+    _db.updateUsageHeartbeat(widget.child.id);
+    _heartbeatTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && mounted) {
+        _db.getLatestChildProfile(user.uid, widget.child.id).then((profile) {
+          if (profile.minutesSpentToday < profile.dailyLimit) {
+            _db.updateUsageHeartbeat(widget.child.id);
+          }
         });
       }
     });
@@ -64,35 +64,77 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     return "Good Evening!";
   }
 
+  // --- SHUFFLING PARENT LOCK LOGIC ---
   void _openParentLock(ChildProfile liveChild) {
     final ctrl = TextEditingController();
+    
+    // Generate new random numbers every time the lock opens
+    final Random rng = Random();
+    int num1 = rng.nextInt(20) + 10; // 10 to 30
+    int num2 = rng.nextInt(15) + 5;  // 5 to 20
+    int correctAnswer = num1 + num2;
+
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (c) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Parents Only", textAlign: TextAlign.center),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+        title: const Column(
+          children: [
+            Icon(Icons.lock_person_rounded, color: AppColors.ultraViolet, size: 40),
+            SizedBox(height: 10),
+            Text("Parents Only", textAlign: TextAlign.center, 
+              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.ultraViolet)),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Solve to unlock:"),
-            const SizedBox(height: 10),
-            const Text("15 + 7 = ?", 
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.childBlue)),
-            TextField(controller: ctrl, keyboardType: TextInputType.number, autofocus: true, textAlign: TextAlign.center),
+            const Text("Solve this to enter settings:", textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            Text("$num1 + $num2 = ?", 
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.childBlue)),
+            const SizedBox(height: 15),
+            TextField(
+              controller: ctrl, 
+              keyboardType: TextInputType.number, 
+              autofocus: true, 
+              textAlign: TextAlign.center,
+              decoration: InputDecoration(
+                hintText: "Answer",
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none)
+              ),
+            ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () {
-              if (ctrl.text == "22") {
-                Navigator.pop(c);
-                if (_isLocked) setState(() { _isLocked = false; _sessionStartTime = DateTime.now(); });
-                Navigator.push(context, MaterialPageRoute(builder: (context) => ParentDashboard(specificChild: liveChild)));
-              }
-            }, 
-            child: const Text("Unlock")
-          )
+          Center(
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.ultraViolet, 
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12)
+              ),
+              onPressed: () {
+                if (ctrl.text == correctAnswer.toString()) {
+                  Navigator.pop(c);
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (context) => ParentDashboard(specificChild: liveChild)
+                  ));
+                } else {
+                  // Vibrate or show error
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text("Wrong answer! Try again."), duration: Duration(seconds: 1))
+                  );
+                  Navigator.pop(c); // Close and force them to try a new shuffle
+                }
+              }, 
+              child: const Text("Unlock Dashboard", style: TextStyle(color: Colors.white))
+            ),
+          ),
+          const SizedBox(height: 10),
         ],
       ),
     );
@@ -108,7 +150,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         if (!snapshot.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
         
         final liveChild = snapshot.data!;
-        if (_minutesPlayed >= liveChild.dailyLimit) _isLocked = true;
+        bool isLocked = liveChild.minutesSpentToday >= liveChild.dailyLimit;
 
         return Stack(
           children: [
@@ -138,7 +180,10 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               ),
               bottomNavigationBar: _buildBottomNav(liveChild),
             ),
-            if (_isLocked) SleepModeScreen(language: liveChild.language, onUnlock: () => _openParentLock(liveChild)),
+            if (isLocked) SleepModeScreen(
+              language: liveChild.language, 
+              onUnlock: () => _openParentLock(liveChild)
+            ),
           ],
         );
       },
@@ -146,7 +191,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   }
 
   Widget _buildTopHeader(ChildProfile liveChild) {
-    int remaining = liveChild.dailyLimit - _minutesPlayed;
+    int remaining = (liveChild.dailyLimit - liveChild.minutesSpentToday).clamp(0, liveChild.dailyLimit);
     return Row(
       children: [
         CircleAvatar(radius: 26, backgroundImage: AssetImage(liveChild.avatarUrl)),
@@ -186,6 +231,10 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   }
 
   Widget _buildTodayHabitCard(ChildProfile liveChild) {
+    String tip = "Kindness makes the world better.";
+    if (liveChild.language == "Malayalam") tip = "ദയ ലോകത്തെ സുന്ദരമാക്കുന്നു.";
+    if (liveChild.language == "Hindi") tip = "दयालुता दुनिया को बेहतर बनाती है।";
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(color: const Color(0xFFEBF5FF), borderRadius: BorderRadius.circular(30)),
@@ -197,12 +246,12 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               children: [
                 const Text("Today's good habit", style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                const Text("\"Kindness makes the world better.\"", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+                Text("\"$tip\"", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
                 const SizedBox(height: 15),
                 Row(
                   children: [
                     ElevatedButton(
-                      onPressed: () => _voice.speak("Always be kind!", liveChild.language),
+                      onPressed: () => _voice.speak(tip, liveChild.language),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.childBlue, shape: const StadiumBorder(), elevation: 0),
                       child: const Text("Listen"),
                     ),
@@ -268,7 +317,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            asset != null ? Image.asset(asset, height: 80) : const Icon(Icons.auto_awesome, size: 40),
+            asset != null ? Image.asset(asset, height: 60) : const Icon(Icons.auto_awesome, size: 40),
             const SizedBox(height: 10),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.childNavy)),
           ],
@@ -292,8 +341,8 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Relaxing Pop", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
-                  Text("Release stress with bubbles", style: TextStyle(color: Colors.white70, fontSize: 12)),
+                  Text("Relaxing Pop", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.white)),
+                  Text("Release stress with bubbles", style: TextStyle(color: Colors.white70, fontSize: 11)),
                 ],
               ),
             ),
@@ -351,7 +400,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                       ],
                     ),
                   ),
-                  Image.asset('assets/images/lion.png', height: 80, errorBuilder: (c,e,s) => const Icon(Icons.pets, size: 40)),
+                  Image.asset('assets/images/lion1.png', height: 80, errorBuilder: (c,e,s) => const Icon(Icons.pets, size: 40)),
                 ],
               ),
             );
@@ -366,14 +415,19 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
       currentIndex: _bottomNavIndex,
       selectedItemColor: AppColors.childBlue,
       onTap: (i) {
-        if (i == 1) Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
-        else if (i == 2) _openParentLock(liveChild);
-        else setState(() => _bottomNavIndex = i);
+        if (i == 1) {
+          Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
+        } else if (i == 2) {
+          // --- TRIGGER PARENT LOCK ---
+          _openParentLock(liveChild);
+        } else {
+          setState(() => _bottomNavIndex = i);
+        }
       },
       items: const [
         BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: "Home"),
         BottomNavigationBarItem(icon: Icon(Icons.star_rounded), label: "Badges"),
-        BottomNavigationBarItem(icon: Icon(Icons.person_rounded), label: "Profile"),
+        BottomNavigationBarItem(icon: Icon(Icons.lock_rounded), label: "Parents"),
       ],
     );
   }

@@ -1,200 +1,83 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/database_service.dart';
 import '../../models/child_model.dart';
-import '../../models/concept_model.dart'; // Added
+import '../../models/concept_model.dart';
 import '../../utils/app_colors.dart';
-import 'child_insights_screen.dart';
 import 'profile_wizard_screen.dart';
-import 'screen_time_settings.dart';
+import '../../widgets/parent_scaffold.dart'; // The sidebar scaffold
 
-class ParentDashboard extends StatelessWidget {
+class ParentDashboard extends StatefulWidget {
   final ChildProfile? specificChild;
   const ParentDashboard({super.key, this.specificChild});
 
-  void _confirmDelete(BuildContext context, String parentId, ChildProfile child) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Delete Profile?", style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-        content: Text("Are you sure you want to delete ${child.name}? This will permanently erase all progress."),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await DatabaseService().deleteChildProfile(parentId, child.id);
-              final prefs = await SharedPreferences.getInstance();
-              if (prefs.getString('activeChildId') == child.id) {
-                await prefs.remove('activeChildId');
-              }
-              if (!context.mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, '/profile_selector', (r) => false);
-            },
-            child: const Text("Delete", style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-  }
+  @override
+  State<ParentDashboard> createState() => _ParentDashboardState();
+}
 
+class _ParentDashboardState extends State<ParentDashboard> {
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final db = DatabaseService();
 
-    return Scaffold(
-      backgroundColor: AppColors.lemonChiffon,
-      appBar: AppBar(
-        title: const Text("PARENTAL CONTROL", style: TextStyle(letterSpacing: 1.5, fontWeight: FontWeight.w900, fontSize: 14)),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.ultraViolet,
-        elevation: 0,
-        centerTitle: true,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: StreamBuilder<List<ChildProfile>>(
-        stream: db.streamChildProfiles(user!.uid),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: AppColors.ultraViolet));
-          }
-          
-          final profiles = snapshot.data ?? [];
-          final activeChild = profiles.firstWhere(
-            (p) => p.id == (specificChild?.id ?? (profiles.isNotEmpty ? profiles.first.id : "")),
-            orElse: () => profiles.isNotEmpty ? profiles.first : ChildProfile(
-              id: '', name: 'No Profile', age: 0, childClass: '', language: '', avatarUrl: 'assets/icons/profiles/p1.png'
-            ),
-          );
+    if (user == null) return const Scaffold(body: Center(child: Text("Please Login")));
 
-          if (activeChild.id.isEmpty) return _buildNoChildView(context);
-
-          return ListView(
-            padding: const EdgeInsets.all(25),
-            children: [
-              _buildIdentityCard(context, activeChild),
-              const SizedBox(height: 30),
-              
-              const Text("SUBJECT WISE PERFORMANCE", 
-                  style: TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
-              const SizedBox(height: 15),
-              
-              // NEW REPLACED SECTION: Category-wise Breakdown
-              _buildCategoryBreakdown(db, activeChild),
-              
-              const SizedBox(height: 30),
-              const Text("MANAGEMENT", 
-                  style: TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)),
-              const SizedBox(height: 15),
-              
-              _buildActionTile(
-                context, 
-                "AI Learning Insights", 
-                "View mastery & performance analysis", 
-                Icons.auto_graph, 
-                () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChildInsightsScreen(child: activeChild))),
-              ),
-              _buildActionTile(
-                context, 
-                "Screen Time Settings", 
-                "Set daily usage limits for ${activeChild.name}", 
-                Icons.timer_rounded, 
-                () => Navigator.push(context, MaterialPageRoute(builder: (c) => ScreenTimeSettingsScreen(child: activeChild))),
-              ),
-              _buildActionTile(
-                context, 
-                "Switch Child Profile", 
-                "Return to profile selection", 
-                Icons.swap_horizontal_circle_outlined, 
-                () async {
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.remove('activeChildId');
-                  if (!context.mounted) return;
-                  Navigator.pushNamedAndRemoveUntil(context, '/profile_selector', (r) => false);
-                }
-              ),
-              _buildActionTile(
-                context, 
-                "Delete Profile", 
-                "Permanently remove this child", 
-                Icons.delete_forever_rounded, 
-                () => _confirmDelete(context, user.uid, activeChild),
-                isRed: true,
-              ),
-              const Divider(height: 40),
-              _buildActionTile(
-                context, 
-                "Logout Parent Account", 
-                "Sign out of LittleGenius", 
-                Icons.logout, 
-                () async {
-                  await FirebaseAuth.instance.signOut();
-                  final prefs = await SharedPreferences.getInstance();
-                  await prefs.clear();
-                  if (!context.mounted) return;
-                  Navigator.pushNamedAndRemoveUntil(context, '/landing', (r) => false);
-                },
-                isRed: true,
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // --- NEW UI: DETAILED CATEGORY BREAKDOWN ---
-  Widget _buildCategoryBreakdown(DatabaseService db, ChildProfile child) {
-    return StreamBuilder<List<Concept>>(
-      stream: db.streamConcepts(), // Fetch all concepts to group scores by category
+    return StreamBuilder<List<ChildProfile>>(
+      stream: db.streamChildProfiles(user.uid),
       builder: (context, snapshot) {
-        if (!snapshot.hasData) return const Center(child: LinearProgressIndicator());
-
-        final allConcepts = snapshot.data!;
-        // 1. Group concepts by category name
-        Map<String, List<String>> categoryToConceptIds = {};
-        for (var concept in allConcepts) {
-          categoryToConceptIds.putIfAbsent(concept.category, () => []).add(concept.id);
+        // 1. Show loading while waiting for Firebase
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
 
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
-          child: Column(
+        final profiles = snapshot.data ?? [];
+        
+        // 2. Identify which child's data to show
+        final activeChild = profiles.firstWhere(
+          (p) => p.id == (widget.specificChild?.id ?? ""),
+          orElse: () => profiles.isNotEmpty ? profiles.first : ChildProfile(
+            id: '', name: 'No Profile', age: 0, childClass: '', language: '', avatarUrl: 'assets/icons/profiles/p1.png'
+          ),
+        );
+
+        // 3. Handle case where no profile exists at all
+        if (activeChild.id.isEmpty) return _buildNoChildView(context);
+
+        // 4. Wrap everything in the ParentScaffold to show the Sidebar
+        return ParentScaffold(
+          title: "Overview",
+          activeRoute: "/parent_dashboard", // Highlights "Overview" in sidebar
+          child: activeChild,
+          body: ListView(
+            padding: const EdgeInsets.all(25),
             children: [
-              // 2. Loop through each category and calculate average for THIS child
-              ...categoryToConceptIds.entries.map((entry) {
-                String categoryName = entry.key;
-                List<String> conceptIds = entry.value;
+              // IDENTITY HEADER
+              _buildIdentityCard(context, activeChild),
+              const SizedBox(height: 25),
+              
+              // REAL-TIME USAGE
+              _sectionTitle("DAILY APP USAGE"),
+              _buildUsageMonitor(activeChild),
+              
+              const SizedBox(height: 25),
 
-                // Find child's scores for concepts in this specific category
-                double categorySum = 0;
-                int scoresFound = 0;
+              // AI RECOMMENDATIONS
+              _sectionTitle("PLAY TOGETHER ADVICE"),
+              _buildAIOfflineRecommendation(db, activeChild),
 
-                for (var cid in conceptIds) {
-                  if (child.masteryScores.containsKey(cid)) {
-                    categorySum += child.masteryScores[cid]!;
-                    scoresFound++;
-                  }
-                }
+              const SizedBox(height: 25),
 
-                // If child hasn't played this category, show as 0%
-                double average = scoresFound == 0 ? 0 : categorySum / scoresFound;
+              // QUALITATIVE FEEDBACK
+              _sectionTitle("AI TUTOR OBSERVATIONS"),
+              _buildAIInsightSummary(activeChild),
 
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 15.0),
-                  child: _statRow(categoryName, average),
-                );
-              }),
-              const Divider(height: 30),
-              _statRow("Total Star Progress", (child.totalStars / 1000).clamp(0.0, 1.0), 
-                  label: "${child.totalStars} / 1000 Stars"),
+              const SizedBox(height: 25),
+
+              // DYNAMIC SUBJECT LIST (Admin added subjects show up here)
+              _sectionTitle("SUBJECT PROGRESS"),
+              _buildDynamicCategoryBreakdown(db, activeChild, context),
+              const SizedBox(height: 50),
             ],
           ),
         );
@@ -202,85 +85,184 @@ class ParentDashboard extends StatelessWidget {
     );
   }
 
+  // --- UI COMPONENTS ---
+
   Widget _buildIdentityCard(BuildContext context, ChildProfile child) {
     return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: AppColors.ultraViolet, borderRadius: BorderRadius.circular(30)),
+      decoration: BoxDecoration(
+        color: AppColors.ultraViolet, 
+        borderRadius: BorderRadius.circular(30),
+        boxShadow: [BoxShadow(color: AppColors.ultraViolet.withOpacity(0.2), blurRadius: 15, offset: const Offset(0, 8))]
+      ),
       child: Row(
         children: [
-          CircleAvatar(radius: 35, backgroundColor: Colors.white, backgroundImage: AssetImage(child.avatarUrl)),
-          const SizedBox(width: 20),
+          CircleAvatar(radius: 35, backgroundImage: AssetImage(child.avatarUrl)),
+          const SizedBox(width: 15),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(child.name, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                Text("${child.childClass} • ${child.language}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                Text("Level: ${child.childClass}", style: const TextStyle(color: Colors.white70, fontSize: 13)),
               ],
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.edit_square, color: AppColors.lemonChiffon),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ProfileWizardScreen(existingChild: child))),
+            icon: const Icon(Icons.edit, color: AppColors.lemonChiffon), 
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ProfileWizardScreen(existingChild: child)))
           ),
         ],
       ),
     );
   }
 
-  Widget _statRow(String title, double val, {String? label}) {
+  Widget _buildUsageMonitor(ChildProfile child) {
+    // Calculate progress (e.g. 10 mins / 30 mins = 0.33)
+    double progress = (child.minutesSpentToday / child.dailyLimit).clamp(0.0, 1.0);
+    bool isOverLimit = child.minutesSpentToday >= child.dailyLimit;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(25),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)]
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text("App Usage Today", style: TextStyle(fontWeight: FontWeight.bold)),
+              // DISPLAY THE REAL MINUTES FROM DATABASE
+              Text("${child.minutesSpentToday} / ${child.dailyLimit} mins", 
+                style: TextStyle(
+                  color: isOverLimit ? Colors.red : AppColors.ultraViolet, 
+                  fontWeight: FontWeight.bold
+                )),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: progress, 
+              minHeight: 10, 
+              backgroundColor: const Color(0xFFFEFACD), 
+              valueColor: AlwaysStoppedAnimation(isOverLimit ? Colors.red : AppColors.childBlue)
+            ),
+          ),
+          if (isOverLimit)
+             const Padding(
+               padding: EdgeInsets.only(top: 8),
+               child: Text("Time is up! App is currently locked.", style: TextStyle(color: Colors.red, fontSize: 11)),
+             )
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAIInsightSummary(ChildProfile child) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(color: const Color(0xFFEBF5FF), borderRadius: BorderRadius.circular(25)),
+      child: const Row(
+        children: [
+          Icon(Icons.face_retouching_natural, color: Colors.blue, size: 30),
+          SizedBox(width: 15),
+          Expanded(child: Text("Your child is building a great foundation. Keep up the daily practice!", style: TextStyle(fontSize: 13, height: 1.4, fontWeight: FontWeight.w500))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDynamicCategoryBreakdown(DatabaseService db, ChildProfile child, BuildContext context) {
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: db.streamCategories(),
+      builder: (context, catSnapshot) {
+        return StreamBuilder<List<Concept>>(
+          stream: db.streamConcepts(),
+          builder: (context, conceptSnapshot) {
+            if (!catSnapshot.hasData || !conceptSnapshot.hasData) return const SizedBox(height: 100);
+            
+            final validCategories = catSnapshot.data!;
+            final allConcepts = conceptSnapshot.data!;
+
+            return Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25)),
+              child: Column(
+                children: [
+                  ...validCategories.map((category) {
+                    String catName = category['name'];
+                    List<String> conceptIds = allConcepts.where((c) => c.category == catName).map((c) => c.id).toList();
+                    double total = 0; int count = 0;
+                    for (var id in conceptIds) { if (child.masteryScores.containsKey(id)) { total += child.masteryScores[id]!; count++; } }
+                    double avg = count == 0 ? 0 : total / count;
+                    return Padding(padding: const EdgeInsets.only(bottom: 15.0), child: _statRow(catName, avg));
+                  }),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _statRow(String title, double val) {
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textDark, fontSize: 13)),
-            Text(label ?? "${(val * 100).toInt()}%", style: const TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)),
+            Text("${(val * 100).toInt()}% Mastery", style: const TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)),
           ],
         ),
         const SizedBox(height: 8),
         ClipRRect(
           borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: val,
-            minHeight: 8,
-            backgroundColor: AppColors.lemonChiffon,
-            valueColor: const AlwaysStoppedAnimation<Color>(AppColors.ultraViolet),
-          ),
+          child: LinearProgressIndicator(value: val, minHeight: 8, backgroundColor: AppColors.lemonChiffon, valueColor: const AlwaysStoppedAnimation(AppColors.ultraViolet)),
         )
       ],
     );
   }
 
-  Widget _buildActionTile(BuildContext context, String t, String s, IconData i, VoidCallback onTap, {bool isRed = false}) {
-    return Card(
-      elevation: 0,
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      child: ListTile(
-        onTap: onTap,
-        leading: CircleAvatar(
-          backgroundColor: isRed ? Colors.red.withAlpha(20) : AppColors.lemonChiffon,
-          child: Icon(i, color: isRed ? Colors.red : AppColors.ultraViolet, size: 20),
-        ),
-        title: Text(t, style: TextStyle(fontWeight: FontWeight.bold, color: isRed ? Colors.red : AppColors.textDark)),
-        subtitle: Text(s, style: const TextStyle(fontSize: 12)),
-        trailing: const Icon(Icons.chevron_right, size: 16),
+  Widget _buildAIOfflineRecommendation(DatabaseService db, ChildProfile child) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(gradient: LinearGradient(colors: [AppColors.ultraViolet, Colors.deepPurple.shade400]), borderRadius: BorderRadius.circular(25)),
+      child: const Row(
+        children: [
+          Icon(Icons.lightbulb, color: Colors.amber, size: 30),
+          SizedBox(width: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Support their learning", style: TextStyle(color: Colors.amber, fontSize: 11, fontWeight: FontWeight.bold)),
+                Text("Try an Offline Game", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                SizedBox(height: 5),
+                Text("Ask your child to find 3 things in the house that start with 'A'.", style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.4)),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
+  Widget _sectionTitle(String title) {
+    return Padding(padding: const EdgeInsets.only(bottom: 10, left: 5), child: Text(title, style: const TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 1.2)));
+  }
+
   Widget _buildNoChildView(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.child_care, size: 80, color: AppColors.ultraViolet),
-          const SizedBox(height: 20),
-          const Text("No profile found.", style: TextStyle(fontWeight: FontWeight.bold)),
-          TextButton(onPressed: () => Navigator.pushNamed(context, '/add_child'), child: const Text("Create a Profile"))
-        ],
-      ),
+    return Scaffold(
+      backgroundColor: const Color(0xFFFDFBEE),
+      appBar: AppBar(backgroundColor: Colors.white, title: const Text("PARENTAL CONTROL")),
+      body: Center(child: TextButton(onPressed: () => Navigator.pushNamed(context, '/add_child'), child: const Text("Create a Child Profile"))),
     );
   }
 }

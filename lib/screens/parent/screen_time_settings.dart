@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/child_model.dart';
 import '../../services/database_service.dart';
 import '../../utils/app_colors.dart';
+import '../../widgets/parent_scaffold.dart';
 
 class ScreenTimeSettingsScreen extends StatefulWidget {
   final ChildProfile child;
@@ -19,7 +20,6 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
   @override
   void initState() {
     super.initState();
-    // Initialize slider with the child's current limit
     _currentLimit = widget.child.dailyLimit.toDouble();
   }
 
@@ -34,7 +34,6 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
     );
     
     if (mounted) {
-      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Usage limit updated successfully!")),
       );
@@ -43,14 +42,10 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
-      appBar: AppBar(
-        title: const Text("Screen Time Settings"),
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textDark,
-        elevation: 0,
-      ),
+    return ParentScaffold(
+      title: "Time Limits",
+      activeRoute: "limits", // Highlights 'Time Limits' in sidebar
+      child: widget.child,
       body: Padding(
         padding: const EdgeInsets.all(30.0),
         child: Column(
@@ -58,7 +53,7 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
             const Icon(Icons.hourglass_bottom_rounded, size: 80, color: AppColors.accentOrange),
             const SizedBox(height: 20),
             Text("Daily Limit for ${widget.child.name}", 
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
             const SizedBox(height: 50),
             
             Text("${_currentLimit.toInt()} Minutes", 
@@ -71,7 +66,7 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
               value: _currentLimit,
               min: 5, 
               max: 120,
-              divisions: 23, // Increments of 5 mins
+              divisions: 23,
               activeColor: AppColors.primaryBlue,
               inactiveColor: AppColors.cloudySky,
               onChanged: (val) => setState(() => _currentLimit = val),
@@ -81,7 +76,7 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
             const Padding(
               padding: EdgeInsets.symmetric(horizontal: 20),
               child: Text(
-                "When this limit is reached, the child's screen will automatically lock until a parent unlocks it.",
+                "When this limit is reached, the app will automatically lock until a parent unlocks it.",
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.blueGrey, fontSize: 13),
               ),
@@ -94,7 +89,7 @@ class _ScreenTimeSettingsScreenState extends State<ScreenTimeSettingsScreen> {
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               ),
               onPressed: _saveLimit, 
-              child: const Text("Apply Limit", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))
+              child: const Text("Save Changes", style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold))
             ),
           ],
         ),
