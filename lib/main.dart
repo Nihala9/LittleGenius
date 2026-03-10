@@ -6,6 +6,8 @@ import 'firebase_options.dart';
 
 // Screens & Services
 import 'services/theme_service.dart';
+import 'services/notification_service.dart'; // Added
+import 'services/voice_service.dart';        // Added
 import 'screens/splash_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -18,36 +20,79 @@ import 'screens/admin/admin_settings_screen.dart';
 import 'utils/app_colors.dart';
 
 void main() async {
+  // 1. Ensure Flutter bindings are ready
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  
-  // Initialize local storage
-  final prefs = await SharedPreferences.getInstance();
-  final String? savedChildId = prefs.getString('activeChildId');
 
+  // 2. Initialize Firebase (Required before runApp)
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // 3. Run the app immediately. 
+  // This prevents the "APP_SCOUT_HANG" on MIUI by showing the UI thread is active.
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeService(),
-      child: LittleGeniusApp(savedChildId: savedChildId),
+      child: const LittleGeniusApp(),
     ),
   );
 }
 
-class LittleGeniusApp extends StatelessWidget {
-  final String? savedChildId;
-  const LittleGeniusApp({super.key, this.savedChildId});
+class LittleGeniusApp extends StatefulWidget {
+  // Global Navigator Key: Allows NotificationService to navigate 
+  // to specific screens without a BuildContext.
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+  const LittleGeniusApp({super.key});
+
+  @override
+  State<LittleGeniusApp> createState() => _LittleGeniusAppState();
+}
+
+class _LittleGeniusAppState extends State<LittleGeniusApp> {
+  String? _savedChildId;
+  bool _isLoaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _bootstrapApp();
+  }
+
+  // --- ASYNC INITIALIZATION ENGINE ---
+  // We do all heavy hardware/storage setup here while 
+  // a lightweight loading indicator is shown.
+  void _bootstrapApp() async {
+    try {
+      // Initialize multiple services in parallel to save time
+      await Future.wait([
+        // Load local preferences
+        SharedPreferences.getInstance().then((prefs) {
+          _savedChildId = prefs.getString('activeChildId');
+        }),
+        // Initialize Notification hardware/permissions
+        NotificationService().init(),
+        // Warm up the AI Voice engine
+        VoiceService().initTTS(),
+      ]);
+    } catch (e) {
+      debugPrint("Bootstrap Error: $e");
+    } finally {
+      if (mounted) {
+        setState(() => _isLoaded = true);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // We use a Consumer here to wrap the MaterialApp. 
-    // This allows the app to listen to theme changes correctly.
     return Consumer<ThemeService>(
       builder: (context, themeService, child) {
         return MaterialApp(
           title: 'LittleGenius',
+          // Link the global navigator key
+          navigatorKey: LittleGeniusApp.navigatorKey, 
           debugShowCheckedModeBanner: false,
           
-          // Theme Configuration
+          // --- THEME CONFIGURATION ---
           theme: ThemeData(
             brightness: Brightness.light,
             primaryColor: AppColors.primaryBlue,
@@ -63,12 +108,14 @@ class LittleGeniusApp extends StatelessWidget {
             useMaterial3: true,
           ),
           
-          // Apply current mode from Service
           themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           
-          // First screen to load
-          home: SplashScreen(savedChildId: savedChildId),
+          // Wait for bootstrap before showing the Splash/Logo
+          home: !_isLoaded 
+            ? const Scaffold(body: Center(child: CircularProgressIndicator())) 
+            : SplashScreen(savedChildId: _savedChildId),
           
+          // --- GLOBAL ROUTES ---
           routes: {
             '/landing': (context) => const LandingScreen(),
             '/login': (context) => const LoginScreen(),

@@ -1,18 +1,13 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:lottie/lottie.dart';
 import '../../../utils/app_colors.dart';
 import '../../../utils/tracing_assets.dart';
+import '../../../utils/game_assets.dart';
 import '../../../services/sound_service.dart';
 import '../../../services/voice_service.dart';
-
-// Helper to store finished parts of the letter
-class FinishedStroke {
-  final List<Offset?> points;
-  final Color color;
-  FinishedStroke(this.points, this.color);
-}
+import 'workbook_painter.dart';
 
 class TracingActivity extends StatefulWidget {
   final String targetLetter;
@@ -33,239 +28,169 @@ class TracingActivity extends StatefulWidget {
 class _TracingActivityState extends State<TracingActivity> with TickerProviderStateMixin {
   final VoiceService _voice = VoiceService();
   
-  // --- DRAWING STATE ---
-  List<Offset?> _currentPoints = [];
-  List<FinishedStroke> _completedStrokes = [];
-  late List<List<Offset>> _allStrokes;
-  int _activeStrokeIdx = 0;
-  Set<int> _hitWaypoints = {};
+  // --- STATE (Final keywords added to satisfy warnings) ---
+  final List<Offset?> _currentPoints = [];
+  final List<FinishedStroke> _completedStrokes = [];
+  late final List<List<Offset>> _allStrokes;
+  final Set<int> _hitWaypoints = {};
   
-  // --- AI STRUGGLE SYSTEM ---
-  int _mistakeCount = 0;
-  int _offTrackPoints = 0; 
-  bool _hintActive = false; 
-  bool _showTutorial = false;
-  bool _isCelebrating = false;
-  Timer? _idleTimer;
+  int _activeIdx = 0;
+  int _scribblePoints = 0; 
+  bool _showTutorial = true;
+  bool _isLocked = false;
 
-  late AnimationController _tutorialController;
-  final List<Color> _palette = [
-    AppColors.childBlue, 
-    AppColors.childGreen, 
-    AppColors.childPink, 
-    AppColors.childOrange
-  ];
+  late final AnimationController _handController;
 
   @override
   void initState() {
     super.initState();
     _allStrokes = TracingAssets.getStrokes(widget.targetLetter[0]);
-    _tutorialController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
-    _startIdleTimer();
+    _handController = AnimationController(vsync: this, duration: const Duration(seconds: 3))..repeat();
+    _voice.speak("Trace it!", widget.language);
   }
 
-  // AI: Detects if the child is staring at the screen doing nothing
-  void _startIdleTimer() {
-    _idleTimer?.cancel();
-    _idleTimer = Timer(const Duration(seconds: 8), () {
-      if (mounted && _currentPoints.isEmpty && !_isCelebrating) {
-        setState(() { _showTutorial = true; _hintActive = true; });
-        _speakLocalized("idle");
-        _mistakeCount++; 
-        if (_mistakeCount >= 4) widget.onComplete(false); // AI Redirect
-      }
-    });
-  }
-
-  // Inside _TracingActivityState
-
-  void _speakLocalized(String type) {
-    String msg = "";
-    if (widget.language == "Malayalam") {
-      switch (type) {
-        case "idle": msg = "നമുക്ക് ഒരുമിച്ച് വരയ്ക്കാം!"; break;
-        case "wrong": msg = "ശ്രദ്ധിക്കുക! വരയിൽ തുടരുക."; break;
-        case "success": msg = "നന്നായി ചെയ്തു!"; break;
-      }
-    } else if (widget.language == "Hindi") {
-      switch (type) {
-        case "idle": msg = "तैयार हैं? चलो साथ में ड्रा करते हैं!"; break;
-        case "wrong": msg = "ओह! लाइन पर रहें!"; break;
-        case "success": msg = "बहुत बढ़िया!"; break;
-      }
-    } else if (widget.language == "Arabic") {
-      switch (type) {
-        case "idle": msg = "هل أنت مستعد؟ لنرسم معاً!"; break;
-        case "wrong": msg = "أوه! ابقَ داخل الخطوط!"; break;
-        case "success": msg = "عمل رائع!"; break;
-      }
-    } else {
-      switch (type) {
-        case "idle": msg = "Ready? Let's draw together!"; break;
-        case "wrong": msg = "Oh-oh! Stay on the lines!"; break;
-        case "success": msg = "Great job!"; break;
-      }
-    }
-    _voice.speak(msg, widget.language);
-  }
-
-  void _processInput(Offset localPos) {
-    if (_activeStrokeIdx >= _allStrokes.length || _isCelebrating) return;
-    List<Offset> activeWaypoints = _allStrokes[_activeStrokeIdx];
-    bool isNearPath = false;
-
-    for (int i = 0; i < activeWaypoints.length; i++) {
-      double dist = (localPos - activeWaypoints[i]).distance;
-      if (dist < 50) {
-        isNearPath = true;
-        if (!_hitWaypoints.contains(i)) {
-          setState(() { _hitWaypoints.add(i); _offTrackPoints = 0; });
-          HapticFeedback.selectionClick();
-        }
-      } else if (dist < 110) { isNearPath = true; }
-    }
-
-    // AI: Scribble detection (Drawing far from the letter)
-    if (!isNearPath) {
-      _offTrackPoints++;
-      if (_offTrackPoints > 20) _handleMistake();
-    }
-    
-    if (_hitWaypoints.length == activeWaypoints.length) _completeStroke();
-  }
-
-  void _handleMistake() async {
-    _offTrackPoints = 0;
-    _mistakeCount++;
-    SoundService.playSFX('wrong.mp3');
-    
-    setState(() { 
-      _currentPoints.clear(); 
-      _hitWaypoints.clear(); 
-      _hintActive = true; 
-    });
-
-    if (_mistakeCount < 3) {
-      _speakLocalized("wrong");
-    } else {
-      widget.onComplete(false); // AI: Kid is struggling too much, redirect activity
-    }
-  }
-
-  void _manualRefresh() {
+  // --- REFRESH LOGIC ---
+  void _resetEntireGame() {
     SoundService.playSFX('pop.mp3');
     setState(() {
       _currentPoints.clear();
       _completedStrokes.clear();
-      _activeStrokeIdx = 0;
+      _activeIdx = 0;
       _hitWaypoints.clear();
-      _mistakeCount = 0;
-      _offTrackPoints = 0;
-      _hintActive = false;
-      _showTutorial = false;
+      _scribblePoints = 0;
+      _showTutorial = true;
+      _isLocked = false;
     });
-    _startIdleTimer();
   }
 
-  void _completeStroke() {
+  void _processInput(Offset pos, Color color) {
+    if (_activeIdx >= _allStrokes.length || _isLocked) return;
+    if (_showTutorial) setState(() => _showTutorial = false);
+
+    List<Offset> path = _allStrokes[_activeIdx];
+    
+    // AI: Scribble Detection
+    bool isNear = false;
+    for (var p in path) {
+      if ((pos - p).distance < 110) { 
+        isNear = true;
+        break;
+      }
+    }
+
+    if (!isNear) {
+      _scribblePoints++;
+      if (_scribblePoints > 20) _handleError();
+      return;
+    }
+
+    // Success detection
+    for (int i = 0; i < path.length; i++) {
+      if ((pos - path[i]).distance < 45) {
+        if (!_hitWaypoints.contains(i)) {
+          setState(() { _hitWaypoints.add(i); _scribblePoints = 0; });
+          HapticFeedback.selectionClick();
+        }
+      }
+    }
+
+    if (_hitWaypoints.length == path.length) _finishStroke(color);
+  }
+
+  void _handleError() {
+    SoundService.playSFX('wrong.mp3');
+    setState(() {
+      _currentPoints.clear();
+      _hitWaypoints.clear();
+      _scribblePoints = 0;
+      _showTutorial = true; 
+    });
+    widget.onComplete(false); 
+  }
+
+  void _finishStroke(Color color) {
     SoundService.playSFX('pop.mp3');
     setState(() {
-      _completedStrokes.add(FinishedStroke(
-        List.from(_currentPoints), 
-        _palette[_activeStrokeIdx % 4]
-      ));
-      _currentPoints.clear(); 
-      _hitWaypoints.clear(); 
-      _activeStrokeIdx++;
-      _mistakeCount = 0; // Reset mistakes on success
-      _isCelebrating = true;
+      _completedStrokes.add(FinishedStroke(List.from(_currentPoints), color));
+      _currentPoints.clear();
+      _hitWaypoints.clear();
+      _activeIdx++;
+      _showTutorial = true;
     });
 
-    if (_activeStrokeIdx == _allStrokes.length) {
-      Future.delayed(const Duration(milliseconds: 500), () => widget.onComplete(true));
-    } else {
-      Future.delayed(const Duration(milliseconds: 800), () {
-        if (mounted) { setState(() => _isCelebrating = false); _startIdleTimer(); }
-      });
+    if (_activeIdx == _allStrokes.length) {
+      setState(() => _isLocked = true);
+      widget.onComplete(true);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    String letter = widget.targetLetter[0].toUpperCase();
+    final data = GameAssets.getConceptData(widget.targetLetter[0]);
+    final Color themeColor = data['color'] ?? Colors.cyan;
+
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        FadeInDown(child: Text("Trace '$letter'", style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.childNavy))),
-        const SizedBox(height: 20),
-        Stack(
-          alignment: Alignment.center,
-          children: [
-            Container(
-              width: 320, height: 420,
-              decoration: BoxDecoration(
-                color: Colors.white, 
-                borderRadius: BorderRadius.circular(30), 
-                border: Border.all(color: _hintActive ? AppColors.childPink.withOpacity(0.3) : Colors.grey.shade100, width: 2),
-                boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 15)]
-              ),
-              child: Builder(builder: (canvasContext) {
-                return GestureDetector(
-                  onPanUpdate: (details) {
-                    if (_isCelebrating) return;
-                    _startIdleTimer();
-                    setState(() { 
-                      _showTutorial = false;
-                      final RenderBox box = canvasContext.findRenderObject() as RenderBox;
-                      final Offset localPos = box.globalToLocal(details.globalPosition);
-                      if (localPos.dx >= 0 && localPos.dx <= 320 && localPos.dy >= 0 && localPos.dy <= 420) { 
-                        _currentPoints.add(localPos); 
-                        _processInput(localPos); 
-                      }
-                    });
-                  },
-                  onPanEnd: (_) => _currentPoints.add(null),
-                  child: CustomPaint(
-                    painter: TracingPainter(
-                      currentPoints: _currentPoints, 
-                      completedStrokes: _completedStrokes, 
-                      currentColor: _palette[_activeStrokeIdx % 4], 
-                      letter: letter, 
-                      hintActive: _hintActive, 
-                      activeWaypoints: _activeStrokeIdx < _allStrokes.length ? _allStrokes[_activeStrokeIdx] : []
-                    ), 
-                    size: const Size(320, 420)
-                  ),
-                );
-              }),
-            ),
-            if (_showTutorial && _activeStrokeIdx < _allStrokes.length)
-              IgnorePointer(child: AnimatedBuilder(animation: _tutorialController, builder: (context, child) {
-                return CustomPaint(painter: TutorialPathPainter(progress: _tutorialController.value, points: _allStrokes[_activeStrokeIdx]), size: const Size(320, 420));
-              })),
-          ],
+        FadeInDown(
+          child: const Text("Trace it!", 
+            style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
         ),
-        const SizedBox(height: 30),
+        const SizedBox(height: 15),
         
-        // --- CONTROLS & STARS ---
+        Container(
+          width: 350, height: 540,
+          decoration: BoxDecoration(
+            color: Colors.white, borderRadius: BorderRadius.circular(40),
+            border: Border.all(color: themeColor, width: 14),
+            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20)],
+          ),
+          child: Column(
+            children: [
+              Expanded(
+                child: Builder(builder: (ctx) {
+                  return Stack(
+                    children: [
+                      GestureDetector(
+                        onPanUpdate: (d) {
+                          if (_isLocked) return;
+                          final RenderBox box = ctx.findRenderObject() as RenderBox;
+                          Offset pos = box.globalToLocal(d.globalPosition);
+                          if (pos.dx >= 0 && pos.dx <= 320 && pos.dy >= 0 && pos.dy <= 420) {
+                            setState(() { _currentPoints.add(pos); });
+                            _processInput(pos, themeColor);
+                          }
+                        },
+                        onPanEnd: (_) => setState(() => _currentPoints.add(null)),
+                        child: CustomPaint(
+                          painter: WorkbookPainter(
+                            completed: _completedStrokes,
+                            current: _currentPoints,
+                            activeColor: themeColor,
+                            letter: widget.targetLetter[0],
+                            // FIXED: Removed the undefined parameter 'allStrokes'
+                          ),
+                          size: const Size(320, 420),
+                        ),
+                      ),
+                      if (_showTutorial && _activeIdx < _allStrokes.length)
+                        _buildTutorialHand(_allStrokes[_activeIdx]),
+                    ],
+                  );
+                }),
+              ),
+              _footer(data, themeColor),
+            ],
+          ),
+        ),
+        const SizedBox(height: 25),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            IconButton(
-              icon: const Icon(Icons.refresh_rounded, size: 40, color: Colors.grey),
-              onPressed: _manualRefresh,
-            ),
-            const SizedBox(width: 20),
-            ...List.generate(_allStrokes.length, (i) => BounceInUp(
-              animate: i < _activeStrokeIdx,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 5),
-                child: Icon(
-                  i < _activeStrokeIdx ? Icons.stars_rounded : Icons.radio_button_off, 
-                  color: i < _activeStrokeIdx ? _palette[i % 4] : Colors.grey.shade300, 
-                  size: 35
-                ),
-              ),
+            IconButton(icon: const Icon(Icons.refresh_rounded, size: 50, color: Colors.redAccent), onPressed: _resetEntireGame),
+            const SizedBox(width: 30),
+            ...List.generate(_allStrokes.length, (i) => Icon(
+              Icons.stars_rounded, size: 45, color: i < _activeIdx ? themeColor : Colors.grey.shade200
             )),
           ],
         ),
@@ -273,60 +198,30 @@ class _TracingActivityState extends State<TracingActivity> with TickerProviderSt
     );
   }
 
-  @override
-  void dispose() { _idleTimer?.cancel(); _tutorialController.dispose(); super.dispose(); }
-}
-
-class TracingPainter extends CustomPainter {
-  final List<Offset?> currentPoints;
-  final List<FinishedStroke> completedStrokes;
-  final Color currentColor;
-  final String letter;
-  final bool hintActive;
-  final List<Offset> activeWaypoints;
-
-  TracingPainter({required this.currentPoints, required this.completedStrokes, required this.currentColor, required this.letter, required this.hintActive, required this.activeWaypoints});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    // 1. Draw Background Letter
-    TextPainter(text: TextSpan(text: letter, style: TextStyle(fontSize: 340, color: Colors.grey.shade50, fontWeight: FontWeight.w900)), textDirection: TextDirection.ltr)..layout()..paint(canvas, Offset((size.width - 220) / 2, (size.height - 380) / 2));
-    
-    // 2. Draw Hint Dots
-    if (hintActive) {
-      final p = Paint()..color = AppColors.childPink.withOpacity(0.15);
-      for (var o in activeWaypoints) canvas.drawCircle(o, 15, p);
-    }
-
-    // 3. Draw Finished Lines
-    Paint p = Paint()..strokeCap = StrokeCap.round..strokeWidth = 24.0;
-    for (var s in completedStrokes) { 
-      p.color = s.color; 
-      for (int i = 0; i < s.points.length - 1; i++) { 
-        if (s.points[i] != null && s.points[i+1] != null) canvas.drawLine(s.points[i]!, s.points[i+1]!, p); 
-      } 
-    }
-
-    // 4. Draw Current Line
-    p.color = currentColor; 
-    for (int i = 0; i < currentPoints.length - 1; i++) { 
-      if (currentPoints[i] != null && currentPoints[i+1] != null) canvas.drawLine(currentPoints[i]!, currentPoints[i+1]!, p); 
-    }
+  Widget _buildTutorialHand(List<Offset> points) {
+    return AnimatedBuilder(
+      animation: _handController,
+      builder: (context, child) {
+        int idx = (_handController.value * (points.length - 1)).floor();
+        double sub = (_handController.value * (points.length - 1)) - idx;
+        Offset pos = Offset.lerp(points[idx], points[(idx + 1).clamp(0, points.length - 1)], sub)!;
+        return Positioned(left: pos.dx - 20, top: pos.dy - 20, child: IgnorePointer(child: Lottie.asset('assets/animations/hand_gesture.json', height: 60)));
+      },
+    );
   }
-  @override bool shouldRepaint(TracingPainter old) => true;
-}
 
-class TutorialPathPainter extends CustomPainter {
-  final double progress; final List<Offset> points;
-  TutorialPathPainter({required this.progress, required this.points});
-  @override
-  void paint(Canvas canvas, Size size) {
-    int segIdx = (progress * (points.length - 1)).floor();
-    double segProg = (progress * (points.length - 1)) - segIdx;
-    Offset pos = Offset.lerp(points[segIdx], points[(segIdx + 1).clamp(0, points.length - 1)], segProg)!;
-    
-    canvas.drawCircle(pos, 22, Paint()..color = AppColors.childPink.withOpacity(0.3));
-    canvas.drawCircle(pos, 10, Paint()..color = AppColors.childPink);
-  }
-  @override bool shouldRepaint(TutorialPathPainter old) => true;
+  Widget _footer(Map data, Color c) => Container(
+    height: 110, color: Colors.grey.shade50,
+    child: Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
+      _item(data['item'] ?? "🍎", data['word'] ?? "Apple", c),
+      _item(data['extra'] ?? "🐜", data['extraWord'] ?? "Ant", c),
+    ]),
+  );
+
+  Widget _item(String i, String w, Color c) => Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+    Text(i, style: const TextStyle(fontSize: 40)),
+    Text(w.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: c))
+  ]);
+
+  @override void dispose() { _handController.dispose(); super.dispose(); }
 }

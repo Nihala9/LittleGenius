@@ -35,12 +35,12 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
   ];
 
   final List<Map<String, dynamic>> _classes = [
-    {'name': 'Pre-School', 'color': const Color(0xFF9173FF), 'icon': Icons.school_rounded},
-    {'name': 'Class 1', 'color': const Color(0xFFFF6B9D), 'val': '1'},
-    {'name': 'Class 2', 'color': const Color(0xFF7ED957), 'val': '2'},
-    {'name': 'Class 3', 'color': const Color(0xFFFFBD59), 'val': '3'},
-    {'name': 'Class 4', 'color': const Color(0xFF4FAAFD), 'val': '4'},
-    {'name': 'Class 5', 'color': const Color(0xFF38B6FF), 'val': '5'},
+    {'name': 'Nursery', 'color': const Color(0xFF9173FF), 'icon': Icons.school_rounded},
+    {'name': 'LKG', 'color': const Color(0xFFFF6B9D), 'icon': Icons.child_care_rounded},
+    {'name': 'UKG', 'color': const Color(0xFF7ED957), 'icon': Icons.emoji_people_rounded},
+    {'name': 'Class 1', 'color': const Color(0xFFFFBD59), 'icon': Icons.child_care_sharp},
+    {'name': 'Class 2', 'color': const Color.fromARGB(255, 247, 79, 253), 'icon': Icons.school_rounded},
+    {'name': 'Class 3', 'color': const Color(0xFF38B6FF), 'icon': Icons.school_rounded},
     {'name': 'No School', 'color': const Color(0xFFFF914D), 'icon': Icons.star_rounded},
   ];
 
@@ -219,39 +219,57 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
         const Text("Select your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
         const Text("Class", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
         const SizedBox(height: 20),
-        GridView.builder(
-          shrinkWrap: true, // IMPORTANT: Allows Grid to work inside SingleChildScrollView
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _classes.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2, mainAxisSpacing: 15, crossAxisSpacing: 15, childAspectRatio: 2.2
-          ),
-          itemBuilder: (c, i) {
-            bool isSelected = _selectedClass == _classes[i]['name'];
-            return InkWell(
-              onTap: () => setState(() => _selectedClass = _classes[i]['name']),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _classes[i]['color'],
-                  borderRadius: BorderRadius.circular(20),
-                  border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(_classes[i]['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
-                    const SizedBox(width: 5),
-                    if (_classes[i]['icon'] != null) Icon(_classes[i]['icon'], color: Colors.white, size: 18)
-                    else Text(_classes[i]['val'], style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
-            );
-          },
-        )
+        _buildClassGridRows(),
       ],
     ),
   );
+
+  Widget _buildClassGridRows() {
+    final rows = <Widget>[];
+    for (int i = 0; i < _classes.length; i += 2) {
+      final isLastRow = i + 2 >= _classes.length;
+      final hasOnlyOneItemInLastRow = isLastRow && _classes.length % 2 == 1;
+
+      rows.add(
+        Padding(
+          padding: EdgeInsets.only(bottom: !isLastRow ? 15 : 0),
+          child: hasOnlyOneItemInLastRow
+              ? _buildClassItem(i) // Single item spans full width
+              : Row(
+                  children: [
+                    Expanded(child: _buildClassItem(i)),
+                    const SizedBox(width: 15),
+                    Expanded(child: _buildClassItem(i + 1)),
+                  ],
+                ),
+        ),
+      );
+    }
+    return Column(children: rows);
+  }
+
+  Widget _buildClassItem(int index) {
+    bool isSelected = _selectedClass == _classes[index]['name'];
+    return InkWell(
+      onTap: () => setState(() => _selectedClass = _classes[index]['name']),
+      child: Container(
+        height: 60,
+        decoration: BoxDecoration(
+          color: _classes[index]['color'],
+          borderRadius: BorderRadius.circular(20),
+          border: isSelected ? Border.all(color: Colors.black, width: 2) : null,
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(_classes[index]['name'], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
+            const SizedBox(width: 5),
+            if (_classes[index]['icon'] != null) Icon(_classes[index]['icon'], color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
 
   // --- STEP 3: BADGE PICKER ---
   Widget _stepBadgePicker() => SingleChildScrollView(

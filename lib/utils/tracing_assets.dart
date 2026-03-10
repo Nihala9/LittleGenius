@@ -2,29 +2,27 @@ import 'package:flutter/material.dart';
 
 class TracingAssets {
   static List<List<Offset>> getStrokes(String char) {
+    // Math logic: centerX = 160, centerY = 210
     switch (char.toUpperCase()) {
       case 'A':
         return [
-          [const Offset(80, 320), const Offset(115, 200), const Offset(150, 80)],  // Stroke 1
-          [const Offset(150, 80), const Offset(185, 200), const Offset(220, 320)], // Stroke 2
-          [const Offset(110, 220), const Offset(190, 220)],                        // Stroke 3
+          [const Offset(160, 80), const Offset(120, 200), const Offset(80, 320)],  // 1. Left Leg
+          [const Offset(160, 80), const Offset(200, 200), const Offset(240, 320)], // 2. Right Leg
+          [const Offset(110, 220), const Offset(210, 220)],                        // 3. Crossbar
         ];
       case 'B':
         return [
-          [const Offset(100, 80), const Offset(100, 200), const Offset(100, 320)], // Vertical line
-          [const Offset(100, 80), const Offset(180, 100), const Offset(100, 150)], // Top hump
-          [const Offset(100, 150), const Offset(200, 230), const Offset(100, 320)],// Bottom hump
-        ];
-      case 'C':
-        return [
-          [const Offset(220, 120), const Offset(150, 80), const Offset(80, 200), const Offset(150, 320), const Offset(220, 280)],
+          [const Offset(110, 80), const Offset(110, 320)], // 1. Spine
+          [const Offset(110, 80), const Offset(180, 80), const Offset(210, 120), const Offset(180, 160), const Offset(110, 160)], // 2. Top
+          [const Offset(110, 160), const Offset(200, 160), const Offset(230, 240), const Offset(200, 320), const Offset(110, 320)], // 3. Bottom
         ];
       case '1':
         return [
-          [const Offset(150, 80), const Offset(150, 200), const Offset(150, 320)],
+          [const Offset(120, 130), const Offset(160, 80)], // 1. Beak
+          [const Offset(160, 80), const Offset(160, 320)], // 2. Body
         ];
-      default: // Default to a simple square path if unknown
-        return [[const Offset(100, 100), const Offset(200, 100), const Offset(200, 200), const Offset(100, 200)]];
+      default:
+        return [[const Offset(160, 80), const Offset(160, 320)]];
     }
   }
 }

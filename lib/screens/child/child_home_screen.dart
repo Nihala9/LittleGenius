@@ -1,7 +1,9 @@
 import 'dart:async';
-import 'dart:math'; // Added for shuffling math numbers
+import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; 
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:animate_do/animate_do.dart'; 
 import '../../models/child_model.dart';
 import '../../models/story_model.dart';
 import '../../utils/app_colors.dart';
@@ -57,40 +59,59 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     });
   }
 
-  String _getTimeBasedGreeting() {
+  // --- 1. LOCALIZED TIME-BASED GREETING ---
+  String _getTimeBasedGreeting(String lang) {
     var hour = DateTime.now().hour;
+    if (lang == "Arabic") {
+      if (hour < 12) return "صباح الخير!"; // Good Morning
+      if (hour < 17) return "طاب يومك!";   // Good Afternoon
+      if (hour < 21) return "مساء الخير!"; // Good Evening
+      return "تصبح على خير!";              // Good Night
+    } else if (lang == "Malayalam") {
+      if (hour < 12) return "സുപ്രഭാതം!";
+      if (hour < 17) return "നമസ്കാരം!";
+      if (hour < 21) return "ശുഭസന്ധ്യ!";
+      return "ശുഭരാത്രി!";
+    } else if (lang == "Hindi") {
+      if (hour < 12) return "सुप्रभात!";
+      if (hour < 17) return "नमस्ते!";
+      if (hour < 21) return "शुभ संध्या!";
+      return "शुभ रात्रि!";
+    }
+    // Default English
     if (hour < 12) return "Good Morning!";
     if (hour < 17) return "Good Afternoon!";
-    return "Good Evening!";
+    if (hour < 21) return "Good Evening!";
+    return "Good Night!";
   }
 
-  // --- SHUFFLING PARENT LOCK LOGIC ---
+  // --- 2. SHUFFLING PARENT LOCK (LOCALIZED) ---
   void _openParentLock(ChildProfile liveChild) {
     final ctrl = TextEditingController();
-    
-    // Generate new random numbers every time the lock opens
     final Random rng = Random();
-    int num1 = rng.nextInt(20) + 10; // 10 to 30
-    int num2 = rng.nextInt(15) + 5;  // 5 to 20
+    int num1 = rng.nextInt(20) + 10;
+    int num2 = rng.nextInt(15) + 5;
     int correctAnswer = num1 + num2;
+
+    bool isAr = liveChild.language == "Arabic";
 
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (c) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
-        title: const Column(
+        title: Column(
           children: [
-            Icon(Icons.lock_person_rounded, color: AppColors.ultraViolet, size: 40),
-            SizedBox(height: 10),
-            Text("Parents Only", textAlign: TextAlign.center, 
-              style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.ultraViolet)),
+            const Icon(Icons.lock_person_rounded, color: AppColors.ultraViolet, size: 40),
+            const SizedBox(height: 10),
+            Text(isAr ? "للآباء فقط" : "Parents Only", textAlign: TextAlign.center, 
+              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.ultraViolet)),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text("Solve this to enter settings:", textAlign: TextAlign.center),
+            Text(isAr ? "قم بحل المسألة للدخول إلى الإعدادات:" : "Solve this to enter settings:", textAlign: TextAlign.center),
             const SizedBox(height: 20),
             Text("$num1 + $num2 = ?", 
                 style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.childBlue)),
@@ -101,7 +122,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
               autofocus: true, 
               textAlign: TextAlign.center,
               decoration: InputDecoration(
-                hintText: "Answer",
+                hintText: isAr ? "الإجابة" : "Answer",
                 filled: true,
                 fillColor: Colors.grey.shade100,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(15), borderSide: BorderSide.none)
@@ -124,14 +145,13 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                     builder: (context) => ParentDashboard(specificChild: liveChild)
                   ));
                 } else {
-                  // Vibrate or show error
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Wrong answer! Try again."), duration: Duration(seconds: 1))
+                    SnackBar(content: Text(isAr ? "إجابة خاطئة! حاول مرة أخرى." : "Wrong answer! Try again."), duration: const Duration(seconds: 1))
                   );
-                  Navigator.pop(c); // Close and force them to try a new shuffle
+                  Navigator.pop(c);
                 }
               }, 
-              child: const Text("Unlock Dashboard", style: TextStyle(color: Colors.white))
+              child: Text(isAr ? "فتح الإعدادات" : "Unlock Dashboard", style: const TextStyle(color: Colors.white))
             ),
           ),
           const SizedBox(height: 10),
@@ -173,16 +193,19 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                       _buildStressGameCard(context),
                       const SizedBox(height: 30),
                       _buildStoryCard(context),
-                      const SizedBox(height: 100),
+                      const SizedBox(height: 120),
                     ],
                   ),
                 ),
               ),
-              bottomNavigationBar: _buildBottomNav(liveChild),
+              extendBody: true,
+              bottomNavigationBar: _buildMagicNav(liveChild),
             ),
-            if (isLocked) SleepModeScreen(
-              language: liveChild.language, 
-              onUnlock: () => _openParentLock(liveChild)
+            if (isLocked) Positioned.fill(
+              child: SleepModeScreen(
+                language: liveChild.language, 
+                onUnlock: () => _openParentLock(liveChild)
+              ),
             ),
           ],
         );
@@ -190,8 +213,79 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
     );
   }
 
+  // --- UI: MAGIC NAVIGATION BAR (LOCALIZED) ---
+  Widget _buildMagicNav(ChildProfile liveChild) {
+    String lang = liveChild.language;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
+      child: Container(
+        height: 75,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(35),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.childBlue.withOpacity(0.2),
+              blurRadius: 20,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _magicNavItem(0, Icons.home_rounded, lang == "Arabic" ? "الرئيسية" : "Home", liveChild),
+            _magicNavItem(1, Icons.star_rounded, lang == "Arabic" ? "الأوسمة" : "Badges", liveChild),
+            _magicNavItem(2, Icons.lock_rounded, lang == "Arabic" ? "الآباء" : "Parents", liveChild),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _magicNavItem(int index, IconData icon, String label, ChildProfile liveChild) {
+    bool isActive = _bottomNavIndex == index;
+
+    return GestureDetector(
+      onTap: () {
+        HapticFeedback.mediumImpact(); 
+        if (index == 1) {
+          Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
+        } else if (index == 2) {
+          _openParentLock(liveChild);
+        } else {
+          setState(() => _bottomNavIndex = index);
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        decoration: isActive ? BoxDecoration(
+          color: AppColors.childBlue.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(20),
+        ) : const BoxDecoration(),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            isActive 
+              ? Bounce(duration: const Duration(milliseconds: 500), child: Icon(icon, color: AppColors.childBlue, size: 28))
+              : Icon(icon, color: Colors.grey.shade400, size: 26),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(
+              fontSize: 10, 
+              fontWeight: FontWeight.bold,
+              color: isActive ? AppColors.childBlue : Colors.grey.shade400
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildTopHeader(ChildProfile liveChild) {
     int remaining = (liveChild.dailyLimit - liveChild.minutesSpentToday).clamp(0, liveChild.dailyLimit);
+    String greeting = _getTimeBasedGreeting(liveChild.language);
+
     return Row(
       children: [
         CircleAvatar(radius: 26, backgroundImage: AssetImage(liveChild.avatarUrl)),
@@ -200,7 +294,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_getTimeBasedGreeting(), style: const TextStyle(color: Colors.grey, fontSize: 11)),
+              Text(greeting, style: const TextStyle(color: Colors.grey, fontSize: 11)),
               Text(liveChild.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.childNavy)),
             ],
           ),
@@ -232,8 +326,22 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
 
   Widget _buildTodayHabitCard(ChildProfile liveChild) {
     String tip = "Kindness makes the world better.";
-    if (liveChild.language == "Malayalam") tip = "ദയ ലോകത്തെ സുന്ദരമാക്കുന്നു.";
-    if (liveChild.language == "Hindi") tip = "दयालुता दुनिया को बेहतर बनाती है।";
+    String header = "Today's good habit";
+    String listenBtn = "Listen";
+
+    if (liveChild.language == "Malayalam") {
+      tip = "ദയ ലോകത്തെ സുന്ദരമാക്കുന്നു.";
+      header = "ഇന്നത്തെ നല്ല ശീലം";
+      listenBtn = "കേൾക്കൂ";
+    } else if (liveChild.language == "Hindi") {
+      tip = "दयालुता दुनिया को बेहतर बनाती है।";
+      header = "आज की अच्छी आदत";
+      listenBtn = "सुनो";
+    } else if (liveChild.language == "Arabic") {
+      tip = "اللّطف يجعل العالم مكاناً أفضل.";
+      header = "عادة اليوم الجيدة";
+      listenBtn = "استمع";
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -244,7 +352,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Today's good habit", style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+                Text(header, style: const TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text("\"$tip\"", style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
                 const SizedBox(height: 15),
@@ -253,7 +361,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
                     ElevatedButton(
                       onPressed: () => _voice.speak(tip, liveChild.language),
                       style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.childBlue, shape: const StadiumBorder(), elevation: 0),
-                      child: const Text("Listen"),
+                      child: Text(listenBtn),
                     ),
                     const SizedBox(width: 12),
                     const Icon(Icons.local_fire_department, color: Colors.orange, size: 18),
@@ -270,13 +378,19 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
   }
 
   Widget _buildCategoryHeading(ChildProfile liveChild) {
+    String title = "Your Journey";
+    String seeAll = "See All";
+    if (liveChild.language == "Arabic") {
+      title = "رحلتك";
+      seeAll = "عرض الكل";
+    }
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Text("Your Journey", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
         TextButton(
           onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => CategorySelectorScreen(child: liveChild))),
-          child: const Text("See All", style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          child: Text(seeAll, style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
         )
       ],
     );
@@ -317,7 +431,7 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            asset != null ? Image.asset(asset, height: 60) : const Icon(Icons.auto_awesome, size: 40),
+            asset != null ? Image.asset(asset, height: 75) : const Icon(Icons.auto_awesome, size: 40),
             const SizedBox(height: 10),
             Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.childNavy)),
           ],
@@ -406,28 +520,6 @@ class _ChildHomeScreenState extends State<ChildHomeScreen> {
             );
           },
         )
-      ],
-    );
-  }
-
-  Widget _buildBottomNav(ChildProfile liveChild) {
-    return BottomNavigationBar(
-      currentIndex: _bottomNavIndex,
-      selectedItemColor: AppColors.childBlue,
-      onTap: (i) {
-        if (i == 1) {
-          Navigator.push(context, MaterialPageRoute(builder: (c) => BadgeGalleryScreen(child: liveChild)));
-        } else if (i == 2) {
-          // --- TRIGGER PARENT LOCK ---
-          _openParentLock(liveChild);
-        } else {
-          setState(() => _bottomNavIndex = i);
-        }
-      },
-      items: const [
-        BottomNavigationBarItem(icon: Icon(Icons.home_rounded), label: "Home"),
-        BottomNavigationBarItem(icon: Icon(Icons.star_rounded), label: "Badges"),
-        BottomNavigationBarItem(icon: Icon(Icons.lock_rounded), label: "Parents"),
       ],
     );
   }

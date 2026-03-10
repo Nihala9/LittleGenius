@@ -11,13 +11,13 @@ import '../../services/database_service.dart';
 import '../../services/sound_service.dart';
 import '../../utils/app_colors.dart';
 import '../../widgets/interactive_buddy.dart';
+import 'activities/scratch_reveal_activity.dart';
 
 // Activity Views
 import 'activities/tracing_activity.dart';
 import 'activities/matching_activity.dart';
 import 'activities/audio_quest_activity.dart';
 import 'activities/puzzle_activity.dart';
-import 'activities/scratch_reveal_activity.dart';
 
 class GameContainer extends StatefulWidget {
   final ChildProfile child;
@@ -55,7 +55,10 @@ class _GameContainerState extends State<GameContainer> {
     _currentActivity = widget.activity;
     _confettiController = ConfettiController(duration: const Duration(seconds: 2));
     _loadAIConfig();
-    _startActivity();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startActivity();
+    });
   }
 
   void _loadAIConfig() async {
@@ -110,7 +113,6 @@ class _GameContainerState extends State<GameContainer> {
 
   void _startActivity() async {
     String msg = _getLocalizedIntro(widget.concept.name, _currentActivity.activityMode, widget.child.language);
-    // Delay to ensure navigation transition is finished
     Future.delayed(const Duration(milliseconds: 700), () async {
        await _voice.speak(msg, widget.child.language);
     });
@@ -161,7 +163,16 @@ class _GameContainerState extends State<GameContainer> {
     double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
     double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
     
-    await _db.updateMastery(uid, widget.child.id, widget.concept.id, newMastery);
+    // FIXED LINE 164: Added 'widget.child.name' and 'widget.concept.category'
+    await _db.updateMastery(
+      uid, 
+      widget.child.id, 
+      widget.concept.id, 
+      newMastery, 
+      widget.child.name, 
+      widget.concept.category
+    );
+    
     await _db.addStars(uid, widget.child.id, 10);
 
     if (newMastery >= 0.8 && !widget.child.badges.contains(widget.concept.category)) {
@@ -223,7 +234,7 @@ class _GameContainerState extends State<GameContainer> {
       _localAttempts = 0;
       _sessionKey = DateTime.now().millisecondsSinceEpoch.toString(); 
       _currentActivity = Activity(
-        id: 'redirect_${_sessionKey}', 
+        id: 'redirect_$_sessionKey', 
         conceptId: widget.concept.id, 
         title: "", 
         activityMode: newMode, 
@@ -256,9 +267,9 @@ class _GameContainerState extends State<GameContainer> {
             else 
               Icon(icon, size: 80, color: iconColor),
             const SizedBox(height: 20),
-            Text(title, style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppColors.childNavy)),
+            Text(title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: AppColors.childNavy)),
             const SizedBox(height: 10),
-            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 16, color: Colors.blueGrey)),
+            Text(message, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.blueGrey)),
             const SizedBox(height: 30),
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: iconColor, minimumSize: const Size(200, 50), shape: const StadiumBorder(), elevation: 5),
@@ -314,7 +325,6 @@ class _GameContainerState extends State<GameContainer> {
     String mode = _currentActivity.activityMode;
     bool isAlphaNum = widget.concept.category == "Alphabets" || widget.concept.category == "Numbers";
 
-    // Auto-switch non-alphabet concepts to Scratch Reveal for better UX
     if (mode == "Tracing" && !isAlphaNum) {
       return ScratchRevealActivity(itemName: widget.concept.name, imageUrl: _currentActivity.imageUrl, language: widget.child.language, onComplete: _onActivityComplete);
     }

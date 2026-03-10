@@ -148,40 +148,38 @@ class _AudioQuestActivityState extends State<AudioQuestActivity> {
 
     return GestureDetector(
       onTap: () => _handleSelection(opt),
-      child: ZoomIn(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          width: 120, height: 140,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(30),
-            border: Border.all(
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        width: 120, height: 140,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: isSelected 
+                ? (isCorrect ? AppColors.childGreen : Colors.redAccent) 
+                : Colors.grey.shade100, 
+            width: 4
+          ),
+          boxShadow: [
+            BoxShadow(
               color: isSelected 
-                  ? (isCorrect ? AppColors.childGreen : Colors.redAccent) 
-                  : Colors.grey.shade100, 
-              width: 4
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: isSelected 
-                  ? (isCorrect ? AppColors.childGreen : Colors.redAccent).withAlpha(50)
-                  : Colors.black.withAlpha(10), 
-                blurRadius: 15, offset: const Offset(0, 8)
-              )
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(data['item'], style: const TextStyle(fontSize: 60)),
-              const SizedBox(height: 5),
-              if (isSelected) 
-                 Icon(
-                   isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded, 
-                   color: isCorrect ? AppColors.childGreen : Colors.redAccent
-                 ),
-            ],
-          ),
+                ? (isCorrect ? AppColors.childGreen : Colors.redAccent).withAlpha(50)
+                : Colors.black.withAlpha(10), 
+              blurRadius: 15, offset: const Offset(0, 8)
+            )
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(data['item'], style: const TextStyle(fontSize: 60)),
+            const SizedBox(height: 5),
+            if (isSelected) 
+               Icon(
+                 isCorrect ? Icons.check_circle_rounded : Icons.cancel_rounded, 
+                 color: isCorrect ? AppColors.childGreen : Colors.redAccent
+               ),
+          ],
         ),
       ),
     );

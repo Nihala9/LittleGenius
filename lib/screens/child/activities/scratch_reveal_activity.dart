@@ -62,7 +62,7 @@ class _ScratchRevealActivityState extends State<ScratchRevealActivity> with Sing
       if (_isFinished || !mounted) { timer.cancel(); return; }
       _secondsElapsed++;
 
-      // Stage 1 & 2: Verbal Hints
+      // Stage 1 & 2: Verbal Hints (awaited to prevent concurrent voice calls)
       if (_secondsElapsed == 10 || _secondsElapsed == 20) {
         _speakStruggleMsg();
       }
@@ -82,7 +82,7 @@ class _ScratchRevealActivityState extends State<ScratchRevealActivity> with Sing
     });
   }
 
-  void _speakStruggleMsg() {
+  Future<void> _speakStruggleMsg() async {
     String msg = "";
     if (widget.language == "Malayalam") {
       msg = "ഇവിടെ ഒന്ന് ഉരച്ചു നോക്കൂ!";
@@ -93,7 +93,7 @@ class _ScratchRevealActivityState extends State<ScratchRevealActivity> with Sing
     } else {
       msg = "Rub the screen to see!";
     }
-    _voice.speak(msg, widget.language);
+    await _voice.speak(msg, widget.language);
   }
 
   void _checkProgress(Offset pos, Size size) {
