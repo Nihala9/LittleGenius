@@ -83,4 +83,42 @@ class NotificationService {
       NotificationDetails(android: androidDetails),
     );
   }
+
+  // --- 3. STRUGGLE ALERT (WITH OFFLINE ADVICE) ---
+  Future<void> notifyStruggle(String childName, String conceptName, String category) async {
+    final int notificationId = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+
+    // Map Category to the specific Offline Task
+    Map<String, String> adviceMap = {
+      'Alphabets': 'Try drawing letters with your child in a tray of sand.',
+      'Numbers': 'Ask your child to help you count 5 spoons at home.',
+      'Animals': 'Ask your child to make the sound of their favorite animal.',
+      'Shapes': 'Look for circular objects together in the room.',
+      'General': 'Read a picture book together before bedtime.',
+    };
+
+    String task = adviceMap[category] ?? adviceMap['General']!;
+
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'struggle_channel',
+      'Learning Support',
+      channelDescription: 'Alerts when your child needs extra help',
+      importance: Importance.high,
+      priority: Priority.high,
+      largeIcon: const DrawableResourceAndroidBitmap('@mipmap/ic_launcher'),
+      color: Colors.orangeAccent,
+      styleInformation: BigTextStyleInformation(
+        '**$childName is struggling with $conceptName.**\n\n💡 Try this offline: $task',
+        htmlFormatContent: true,
+        htmlFormatTitle: true,
+      ),
+    );
+
+    await _notificationsPlugin.show(
+      notificationId,
+      "Help $childName learn! 💡",
+      "$childName is struggling with $conceptName. Tap for advice.",
+      NotificationDetails(android: androidDetails),
+    );
+  }
 }

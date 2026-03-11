@@ -80,14 +80,18 @@ class NotificationHistoryScreen extends StatelessWidget {
                   side: BorderSide(color: AppColors.ultraViolet.withValues(alpha: 0.05))
                 ),
                 child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: data['type'] == 'progress' 
-                        ? Colors.amber.withValues(alpha: 0.1) 
-                        : Colors.red.withValues(alpha: 0.1),
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: data['type'] == 'struggle' 
+                          ? Colors.orange.withValues(alpha: 0.1) 
+                          : AppColors.lemonChiffon,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                     child: Icon(
-                      data['type'] == 'progress' ? Icons.stars : Icons.timer_rounded,
-                      color: data['type'] == 'progress' ? Colors.amber : Colors.red,
-                      size: 20,
+                      data['type'] == 'struggle' ? Icons.lightbulb_outline_rounded : Icons.access_time_rounded, 
+                      color: data['type'] == 'struggle' ? Colors.orange : AppColors.ultraViolet, 
+                      size: 20
                     ),
                   ),
                   title: Text(data['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),

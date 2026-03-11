@@ -161,6 +161,18 @@ class DatabaseService {
     await batch.commit();
   }
 
+  // --- TRIGGER STRUGGLE NOTIFICATION ---
+  Future<void> logStruggleAlert(String uid, String childId, String childName, String conceptName, String category) async {
+    String title = "Help Needed: $conceptName 💡";
+    String body = "$childName is finding $conceptName tricky. Try an offline tracing game together!";
+    
+    // 1. Send the actual phone notification
+    NotificationService().notifyStruggle(childName, conceptName, category);
+
+    // 2. Save to the persistent history log
+    await _logNotification(uid, title, body, 'struggle');
+  }
+
   // ==========================================
   // 6. SCREEN TIME & CONFIG
   // ==========================================

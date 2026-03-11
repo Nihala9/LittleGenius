@@ -212,9 +212,21 @@ class _GameContainerState extends State<GameContainer> {
   }
 
   void _showRedirectionDialog() async {
+    final user = FirebaseAuth.instance.currentUser;
     final plan = _aiLogic.getRedirectionPlan(_currentActivity.activityMode, 0.2);
-    String speakMsg = _getLocalizedText("Let's try a new game!", "പുതിയ കളി കളിക്കാം!", "नया गेम खेलते हैं!", "لنحاول لعبة جديدة!");
-    await _voice.speak(speakMsg, widget.child.language);
+    
+    // --- NEW: Notify Parent immediately when Redirection starts ---
+    if (user != null) {
+      _db.logStruggleAlert(
+        user.uid, 
+        widget.child.id, 
+        widget.child.name, 
+        widget.concept.name, 
+        widget.concept.category
+      );
+    }
+
+    await _voice.speak(plan['message'], widget.child.language);
 
     _showPopDialog(
       title: _getLocalizedText("TRY THIS!", "പുതിയ കളി!", "ये ट्राई करो!", "جرب هذا!"),
