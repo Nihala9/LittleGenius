@@ -215,4 +215,152 @@ class DatabaseService {
 
   Future<void> updateAIConfig(Map<String, dynamic> config) async => await _db.collection('settings').doc('ai_config').set(config, SetOptions(merge: true));
   Future<Map<String, dynamic>> getAIConfig() async { var doc = await _db.collection('settings').doc('ai_config').get(); return doc.data() ?? {'pGuess': 0.2, 'pSlip': 0.1, 'masteryThreshold': 0.8, 'redirectionLimit': 2}; }
+
+  // ==========================================
+  // 7. ADMIN ANALYTICS
+  // ==========================================
+  Future<Map<String, dynamic>> getPlatformAnalytics() async {
+    try {
+      final allProfiles = await _db.collectionGroup('profiles').get();
+      final docs = allProfiles.docs;
+      
+      int totalChildren = docs.length;
+      int activeToday = 0;
+      double totalStars = 0;
+      int totalMasteries = 0;
+      double totalUsageMinutes = 0;
+      List<Map<String, dynamic>> childPerformance = [];
+      
+      DateTime today = DateTime.now();
+      
+      for (var doc in docs) {
+        final data = doc.data();
+        final childName = data['name'] ?? 'Unknown';
+        final childAge = data['age'] ?? 0;
+        
+        // System usage metrics
+        totalStars += (data['totalStars'] ?? 0).toDouble();
+        totalUsageMinutes += (data['minutesSpentToday'] ?? 0).toDouble();
+        
+        // Check if active today
+        if (data['lastSessionDate'] != null) {
+          DateTime lastSession = (data['lastSessionDate'] as Timestamp).toDate();
+          if (lastSession.year == today.year && lastSession.month == today.month && lastSession.day == today.day) {
+            activeToday++;
+          }
+        }
+        
+        // Learning analytics
+        Map<String, double> masteryScores = {};
+        if (data['masteryScores'] != null) {
+          (data['masteryScores'] as Map<String, dynamic>).forEach((key, value) {
+            masteryScores[key] = (value as num).toDouble();
+          });
+        }
+        
+        int childMasteries = 0;
+        double childAverageScore = 0;
+        if (masteryScores.isNotEmpty) {
+          childMasteries = masteryScores.values.where((score) => score >= 0.8).length;
+          childAverageScore = masteryScores.values.reduce((a, b) => a + b) / masteryScores.length;
+          totalMasteries += childMasteries;
+        }
+        
+        childPerformance.add({
+          'name': childName,
+          'age': childAge,
+          'masteries': childMasteries,
+          'averageScore': childAverageScore,
+          'stars': data['totalStars'] ?? 0,
+          'minutesToday': data['minutesSpentToday'] ?? 0,
+        });
+      }
+      
+      // Calculate average metrics
+      double avgUsagePerChild = totalChildren > 0 ? totalUsageMinutes / totalChildren : 0;
+      double avgMasteryPerChild = totalChildren > 0 ? totalMasteries / totalChildren : 0;
+      double avgStarsPerChild = totalChildren > 0 ? totalStars / totalChildren : 0;
+      double avgScore = 0;
+      
+      // Calculate average mastery score across all children
+      int totalScoresCount = 0;
+      double sumAllScores = 0;
+      for (var doc in docs) {
+        final data = doc.data();
+        if (data['masteryScores'] != null) {
+          Map<String, dynamic> scores = data['masteryScores'] as Map<String, dynamic>;
+          scores.forEach((key, value) {
+            sumAllScores += (value as num).toDouble();
+            totalScoresCount++;
+          });
+        }
+      }
+      if (totalScoresCount > 0) {
+        avgScore = sumAllScores / totalScoresCount;
+      }
+      
+      // Sort children by performance
+      childPerformance.sort((a, b) => (b['averageScore'] as double).compareTo(a['averageScore'] as double));
+      List<Map<String, dynamic>> topPerformers = childPerformance.take(5).toList();
+      List<Map<String, dynamic>> struggling = childPerformance.where((c) => (c['averageScore'] as double) < 0.5 && (c['averageScore'] as double) > 0).toList().take(5).toList();
+      
+      // Calculate engagement rate
+      double engagementRate = totalChildren > 0 ? (activeToday / totalChildren) * 100 : 0;
+      
+      return {
+        'totalChildren': totalChildren,
+        'activeToday': activeToday,
+        'engagementRate': engagementRate,
+        'totalStars': totalStars.toInt(),
+        'totalMasteries': totalMasteries,
+        'avgUsagePerChild': avgUsagePerChild.toInt(),
+        'avgMasteryPerChild': avgMasteryPerChild.toStringAsFixed(1),
+        'avgStarsPerChild': avgStarsPerChild.toStringAsFixed(1),
+        'avgScore': (avgScore * 100).toStringAsFixed(1),
+        'topPerformers': topPerformers,
+        'struggling': struggling,
+        'totalUsageMinutes': totalUsageMinutes.toInt(),
+      };
+    } catch (e) {
+      debugPrint("Analytics Error: $e");
+      return {};
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getChildrenPerformance({int limit = 10}) async {
+    try {
+      final allProfiles = await _db.collectionGroup('profiles').get();
+      List<Map<String, dynamic>> performance = [];
+      
+      for (var doc in allProfiles.docs) {
+        final data = doc.data();
+        Map<String, double> masteryScores = {};
+        
+        if (data['masteryScores'] != null) {
+          (data['masteryScores'] as Map<String, dynamic>).forEach((key, value) {
+            masteryScores[key] = (value as num).toDouble();
+          });
+        }
+        
+        double avgScore = masteryScores.isNotEmpty 
+            ? masteryScores.values.reduce((a, b) => a + b) / masteryScores.length 
+            : 0;
+        
+        performance.add({
+          'name': data['name'] ?? 'Unknown',
+          'age': data['age'] ?? 0,
+          'averageScore': avgScore,
+          'masteryCount': masteryScores.values.where((s) => s >= 0.8).length,
+          'stars': data['totalStars'] ?? 0,
+          'badges': (data['badges'] as List<dynamic>?)?.length ?? 0,
+        });
+      }
+      
+      performance.sort((a, b) => (b['averageScore'] as double).compareTo(a['averageScore'] as double));
+      return performance.take(limit).toList();
+    } catch (e) {
+      debugPrint("Performance Error: $e");
+      return [];
+    }
+  }
 }
