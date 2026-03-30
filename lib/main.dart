@@ -4,10 +4,12 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 
-// Screens & Services
+// --- Services ---
 import 'services/theme_service.dart';
-import 'services/notification_service.dart'; // Added
-import 'services/voice_service.dart';        // Added
+import 'services/notification_service.dart'; 
+import 'services/voice_service.dart';        
+
+// --- Screens ---
 import 'screens/splash_screen.dart';
 import 'screens/landing_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -17,6 +19,8 @@ import 'screens/parent/parent_dashboard.dart';
 import 'screens/admin/admin_dashboard.dart';
 import 'screens/parent/profile_wizard_screen.dart';
 import 'screens/admin/admin_settings_screen.dart';
+
+// --- Utils ---
 import 'utils/app_colors.dart';
 
 void main() async {
@@ -24,10 +28,11 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // 2. Initialize Firebase (Required before runApp)
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
 
-  // 3. Run the app immediately. 
-  // This prevents the "APP_SCOUT_HANG" on MIUI by showing the UI thread is active.
+  // 3. Run the app inside a ChangeNotifierProvider for Global Theme Management
   runApp(
     ChangeNotifierProvider(
       create: (_) => ThemeService(),
@@ -37,8 +42,8 @@ void main() async {
 }
 
 class LittleGeniusApp extends StatefulWidget {
-  // Global Navigator Key: Allows NotificationService to navigate 
-  // to specific screens without a BuildContext.
+  // Global Navigator Key: Allows NotificationService or AI Service 
+  // to trigger navigation/dialogs without a BuildContext.
   static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
   const LittleGeniusApp({super.key});
@@ -58,23 +63,22 @@ class _LittleGeniusAppState extends State<LittleGeniusApp> {
   }
 
   // --- ASYNC INITIALIZATION ENGINE ---
-  // We do all heavy hardware/storage setup here while 
-  // a lightweight loading indicator is shown.
+  // Initializes hardware and storage in parallel to prevent 
+  // "App Scout Hangs" on heavy Android skins (MIUI/ColorOS).
   void _bootstrapApp() async {
     try {
-      // Initialize multiple services in parallel to save time
       await Future.wait([
-        // Load local preferences
+        // Retrieve last active session
         SharedPreferences.getInstance().then((prefs) {
           _savedChildId = prefs.getString('activeChildId');
         }),
-        // Initialize Notification hardware/permissions
+        // Initialize Notification Channels and Permissions
         NotificationService().init(),
-        // Warm up the AI Voice engine
+        // Warm up the TTS Engine for AI Tutor
         VoiceService().initTTS(),
       ]);
     } catch (e) {
-      debugPrint("Bootstrap Error: $e");
+      debugPrint("Initialization Error: $e");
     } finally {
       if (mounted) {
         setState(() => _isLoaded = true);
@@ -88,29 +92,44 @@ class _LittleGeniusAppState extends State<LittleGeniusApp> {
       builder: (context, themeService, child) {
         return MaterialApp(
           title: 'LittleGenius',
-          // Link the global navigator key
           navigatorKey: LittleGeniusApp.navigatorKey, 
           debugShowCheckedModeBanner: false,
           
           // --- THEME CONFIGURATION ---
+          // Uses Material 3 with a custom seed color based on the Parent Dashboard brand
           theme: ThemeData(
-            brightness: Brightness.light,
-            primaryColor: AppColors.primaryBlue,
+            useMaterial3: true,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppColors.ultraViolet,
+              primary: AppColors.primaryBlue,
+              secondary: AppColors.ultraViolet,
+              surface: AppColors.backgroundWhite,
+            ),
+            fontFamily: 'Poppins',
             scaffoldBackgroundColor: AppColors.backgroundWhite,
-            fontFamily: 'Poppins',
-            useMaterial3: true,
+            appBarTheme: const AppBarTheme(
+              centerTitle: true,
+              elevation: 0,
+              backgroundColor: Colors.white,
+              surfaceTintColor: Colors.white,
+            ),
           ),
+
           darkTheme: ThemeData(
-            brightness: Brightness.dark,
-            primaryColor: AppColors.primaryBlue,
-            scaffoldBackgroundColor: const Color(0xFF0F172A),
-            fontFamily: 'Poppins',
             useMaterial3: true,
+            brightness: Brightness.dark,
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: AppColors.ultraViolet,
+              brightness: Brightness.dark,
+              primary: AppColors.primaryBlue,
+              surface: const Color(0xFF0F172A),
+            ),
+            fontFamily: 'Poppins',
           ),
           
           themeMode: themeService.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           
-          // Wait for bootstrap before showing the Splash/Logo
+          // Shows a clean loader until services are ready
           home: !_isLoaded 
             ? const Scaffold(body: Center(child: CircularProgressIndicator())) 
             : SplashScreen(savedChildId: _savedChildId),

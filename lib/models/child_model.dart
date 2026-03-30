@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ChildProfile {
   String id;
   String name;
+  String? parentName;
   int age;
   String childClass;
   String language;
@@ -13,11 +14,13 @@ class ChildProfile {
   Map<String, double> masteryScores;
   List<String> badges; 
   int minutesSpentToday;
+  int streak;
   DateTime? lastSessionDate;
 
   ChildProfile({
     required this.id,
     required this.name,
+    this.parentName,
     required this.age,
     required this.childClass,
     required this.language,
@@ -28,6 +31,7 @@ class ChildProfile {
     this.masteryScores = const {},
     this.badges = const [],
     this.minutesSpentToday = 0,
+    this.streak = 0,
     this.lastSessionDate,
   });
 
@@ -44,6 +48,7 @@ class ChildProfile {
     return ChildProfile(
       id: id,
       name: data['name'] ?? '',
+      parentName: data['parentName'],
       age: data['age'] ?? 3,
       childClass: data['childClass'] ?? 'Pre-School',
       language: data['language'] ?? 'English',
@@ -54,6 +59,7 @@ class ChildProfile {
       masteryScores: convertedScores,
       badges: List<String>.from(data['badges'] ?? []),
       minutesSpentToday: data['minutesSpentToday'] ?? 0,
+      streak: data['streak'] ?? 0,
       lastSessionDate: data['lastSessionDate'] != null 
           ? (data['lastSessionDate'] as Timestamp).toDate() 
           : DateTime.now(),
@@ -63,6 +69,7 @@ class ChildProfile {
   Map<String, dynamic> toMap() {
     return {
       'name': name,
+      'parentName': parentName,
       'age': age,
       'childClass': childClass,
       'language': language,
@@ -73,6 +80,7 @@ class ChildProfile {
       'masteryScores': masteryScores,
       'badges': badges,
       'minutesSpentToday': minutesSpentToday,
+      'streak': streak,
       'lastSessionDate': lastSessionDate != null 
           ? Timestamp.fromDate(lastSessionDate!) 
           : FieldValue.serverTimestamp(),

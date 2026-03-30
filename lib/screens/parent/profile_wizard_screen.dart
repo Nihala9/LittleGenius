@@ -22,6 +22,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
 
   // --- DATA STATE ---
   final _nameController = TextEditingController();
+  final _parentNameController = TextEditingController();
   String _selectedClass = 'Pre-School';
   String _selectedLanguage = 'English';
   String _selectedIcon = 'assets/icons/profiles/p1.png';
@@ -54,6 +55,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
 
     if (widget.existingChild != null) {
       _nameController.text = widget.existingChild!.name;
+      _parentNameController.text = widget.existingChild!.parentName ?? '';
       _selectedClass = widget.existingChild!.childClass;
       _selectedLanguage = widget.existingChild!.language;
       _selectedIcon = widget.existingChild!.avatarUrl;
@@ -64,6 +66,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
   void dispose() {
     _mascotController.dispose();
     _nameController.dispose();
+    _parentNameController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -89,6 +92,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
 
     Map<String, dynamic> data = {
       'name': _nameController.text.trim(),
+      'parentName': _parentNameController.text.trim(),
       'childClass': _selectedClass,
       'language': _selectedLanguage,
       'avatarUrl': _selectedIcon, 
@@ -203,6 +207,20 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
           style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
           decoration: InputDecoration(
             hintText: "Type here...",
+            filled: true, fillColor: Colors.white,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.grey.shade200)),
+          ),
+        ),
+        const SizedBox(height: 40),
+        const Text("Parent's Name (Optional)", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _parentNameController,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          decoration: InputDecoration(
+            hintText: "Enter parent's name...",
+            hintStyle: TextStyle(color: Colors.grey.shade400),
             filled: true, fillColor: Colors.white,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(25), borderSide: BorderSide(color: Colors.grey.shade200)),
           ),

@@ -28,20 +28,61 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     if (mounted) setState(() => _isLoading = false);
   }
 
+  // --- SMART HEURISTIC LOGIC (Replaces Gemini) ---
+  // This analyzes the data locally to give "AI-like" insights
+  Map<String, String> _getSmartAnalysis() {
+    final scores = widget.child.masteryScores;
+    if (scores.isEmpty) return {};
+
+    String strongestId = scores.entries.reduce((a, b) => a.value > b.value ? a : b).key;
+    String weakestId = scores.entries.reduce((a, b) => a.value < b.value ? a : b).key;
+
+    String strongestName = _conceptNames[strongestId] ?? "Lessons";
+    String weakestName = _conceptNames[weakestId] ?? "New Topics";
+
+    String lang = widget.child.language;
+
+    if (lang == "Malayalam") {
+      return {
+        "strength": "${widget.child.name} ഇപ്പോൾ $strongestName-ൽ വളരെ മിടുക്കനാണ്!",
+        "struggle": "$weakestName മനസ്സിലാക്കാൻ അല്പം കൂടി പരിശീലനം ആവശ്യമാണ്.",
+        "tip": "അമ്മയോ അച്ഛനോ കൂടെയിരുന്ന് $weakestName വരയ്ക്കാൻ സഹായിക്കുന്നത് നന്നായിരിക്കും."
+      };
+    } else if (lang == "Arabic") {
+      return {
+        "strength": "${widget.child.name} ممتاز جداً في $strongestName!",
+        "struggle": "يحتاج إلى مزيد من التدريب في $weakestName.",
+        "tip": "جرب ممارسة $weakestName معه في المنزل باستخدام الورقة والقلم."
+      };
+    } else if (lang == "Hindi") {
+      return {
+        "strength": "${widget.child.name} $strongestName में बहुत अच्छा कर रहा है!",
+        "struggle": "$weakestName में थोड़े और अभ्यास की आवश्यकता है।",
+        "tip": "खेल-खेल में $weakestName का अभ्यास कराना उनके लिए मददगार होगा।"
+      };
+    } else {
+      return {
+        "strength": "${widget.child.name} is showing mastery in $strongestName!",
+        "struggle": "Currently finding $weakestName a bit challenging.",
+        "tip": "Try an offline tracing activity for $weakestName to build confidence."
+      };
+    }
+  }
+
   String _getMasteryLevel(double score) {
     if (score >= 0.8) return "Mastery Level";
     if (score >= 0.5) return "Improving Fast";
     return "Needs Practice";
   }
 
-  String _getAIInsight(String conceptId, double score) {
+  String _getQuickInsight(String conceptId, double score) {
     String name = _conceptNames[conceptId] ?? "this lesson";
     if (score >= 0.8) {
-      return "Excellent! ${widget.child.name} has strong recognition of $name. We are now focusing on speed and precision.";
+      return "Excellent! Recognition of $name is now instinctive.";
     } else if (score >= 0.4) {
-      return "Good progress with $name. The AI has noted occasional hesitation and is using more ${widget.child.preferredMode} activities to reinforce the shape.";
+      return "Good progress. The tutor is focusing on ${widget.child.preferredMode} to help.";
     } else {
-      return "Struggling with $name. The AI engine is slowing down the pace to build a stronger foundation.";
+      return "Focusing on fundamentals. Slowing down the pace to ensure $name is understood.";
     }
   }
 
@@ -50,10 +91,9 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     final scores = widget.child.masteryScores;
     final hasData = scores.isNotEmpty;
 
-    // Use the ParentScaffold to provide the Sidebar menu
     return ParentScaffold(
       title: "Learning Reports",
-      activeRoute: "reports", // Highlights 'Learning Reports' in sidebar
+      activeRoute: "reports",
       child: widget.child,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -67,14 +107,11 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
                       _buildOverallProgressCard(),
                       const SizedBox(height: 25),
                       
-                      const Text("Tutor Observations", 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
-                      const SizedBox(height: 12),
-                      _buildTutorObservationCard(),
+                      _sectionHeader("Smart Analysis", Icons.psychology_rounded),
+                      _buildSmartAnalysisCard(),
                       
                       const SizedBox(height: 30),
-                      const Text("Activity Performance", 
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+                      _sectionHeader("Subject Breakdown", Icons.analytics_outlined),
                       const SizedBox(height: 15),
                       
                       ...scores.entries.map((entry) => _buildReportTile(entry.key, entry.value)),
@@ -83,6 +120,16 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
                     ],
                   ),
                 ),
+    );
+  }
+
+  Widget _sectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Icon(icon, color: AppColors.ultraViolet, size: 20),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.childNavy)),
+      ],
     );
   }
 
@@ -109,9 +156,9 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text("Overall Achievement", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                const Text("Global Progress", style: TextStyle(color: Colors.white70, fontSize: 13)),
                 Text("${(totalMastery * 100).toInt()}% Mastery", 
-                    style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 5),
                 Text(_getMasteryLevel(totalMastery).toUpperCase(), 
                     style: const TextStyle(color: AppColors.childGreen, fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1)),
@@ -123,33 +170,42 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
     );
   }
 
-  Widget _buildTutorObservationCard() {
+  Widget _buildSmartAnalysisCard() {
+    final analysis = _getSmartAnalysis();
+    
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(20),
+      margin: const EdgeInsets.only(top: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF4E5),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.orange.withOpacity(0.2)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(25),
+        border: Border.all(color: AppColors.ultraViolet.withOpacity(0.1)),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.psychology_rounded, size: 35, color: Colors.orange),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text("Learning Style Insight", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.brown)),
-                const SizedBox(height: 4),
-                Text(
-                  "The AI has observed that ${widget.child.name} is a strong '${widget.child.preferredMode}' learner. Tasks are being optimized for this style.",
-                  style: const TextStyle(fontSize: 13, color: Colors.black87, height: 1.4),
-                ),
-              ],
-            ),
-          )
+          _analysisItem(Icons.star_rounded, Colors.amber, analysis['strength'] ?? "Analyzing progress..."),
+          const Divider(height: 30),
+          _analysisItem(Icons.info_outline_rounded, Colors.blue, analysis['struggle'] ?? "Keep playing to see trends."),
+          const Divider(height: 30),
+          _analysisItem(Icons.lightbulb_outline, Colors.orange, "Teacher's Tip: ${analysis['tip'] ?? "Consistency is key to learning!"}"),
         ],
       ),
+    );
+  }
+
+  Widget _analysisItem(IconData icon, Color color, String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: color, size: 24),
+        const SizedBox(width: 15),
+        Expanded(
+          child: Text(text, style: const TextStyle(fontSize: 14, height: 1.5, color: AppColors.childNavy, fontWeight: FontWeight.w500)),
+        ),
+      ],
     );
   }
 
@@ -189,11 +245,11 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.auto_awesome, size: 14, color: AppColors.childPink),
+              const Icon(Icons.auto_awesome, size: 16, color: Colors.amber),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
-                  _getAIInsight(conceptId, score),
+                  _getQuickInsight(conceptId, score),
                   style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600, fontStyle: FontStyle.italic, height: 1.4),
                 ),
               ),
@@ -211,10 +267,10 @@ class _ChildInsightsScreenState extends State<ChildInsightsScreen> {
         children: [
           const Icon(Icons.analytics_outlined, size: 80, color: Colors.grey),
           const SizedBox(height: 20),
-          const Text("Waiting for data...", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text("No learning data yet", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 50, vertical: 10),
-            child: Text("Performance reports will appear here once an activity is completed.",
+            child: Text("Start some activities in the child profile to see progress reports here!",
               textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
           ),
         ],

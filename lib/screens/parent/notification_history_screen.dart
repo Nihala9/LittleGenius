@@ -47,8 +47,9 @@ class NotificationHistoryScreen extends StatelessWidget {
             .orderBy('timestamp', descending: true)
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) 
-              return const Center(child: CircularProgressIndicator());
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
           
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return Center(

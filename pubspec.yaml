@@ -10,7 +10,7 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  
+
   # --- Backend ---
   firebase_core: ^3.0.0
   firebase_auth: ^5.0.0
@@ -26,17 +26,14 @@ dependencies:
   
   # --- UI & Charts ---
   google_fonts: ^6.2.1       
-  fl_chart: ^0.68.0          
+  fl_chart: ^0.68.0  
+  percent_indicator: ^4.2.3        
   animate_do: ^3.3.4         # ADDED: For bouncy kid-friendly animations
   confetti: ^0.7.0           # ADDED: For game completion celebrations
 
   # --- Utility ---
   cupertino_icons: ^1.0.8
   intl: ^0.20.2     
-  
-  # --- pdf ---
-  pdf: ^3.10.0
-  printing: ^5.11.0
 
   shared_preferences: ^2.2.2
 
@@ -45,7 +42,6 @@ dependencies:
   url_launcher: ^6.2.5
   youtube_player_flutter: ^9.0.1
   flutter_local_notifications: ^17.2.2
-  google_generative_ai: ^0.4.0
 
 dev_dependencies:
   flutter_test:

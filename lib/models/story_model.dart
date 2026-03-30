@@ -3,9 +3,15 @@ class KidStory {
   final String title;
   final String youtubeId;
   final String duration;
-  final String category; // e.g., "Moral", "Animal", "Space"
+  final String category; 
 
-  KidStory({required this.id, required this.title, required this.youtubeId, required this.duration, required this.category});
+  KidStory({
+    required this.id, 
+    required this.title, 
+    required this.youtubeId, 
+    required this.duration, 
+    required this.category
+  });
 
   factory KidStory.fromMap(Map<String, dynamic> data, String id) {
     return KidStory(
@@ -18,6 +24,11 @@ class KidStory {
   }
 
   Map<String, dynamic> toMap() {
-    return {'title': title, 'youtubeId': youtubeId, 'duration': duration, 'category': category};
+    return {
+      'title': title,
+      'youtubeId': youtubeId,
+      'duration': duration,
+      'category': category,
+    };
   }
 }

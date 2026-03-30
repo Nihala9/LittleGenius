@@ -13,6 +13,7 @@ class DatabaseService {
   // ==========================================
   // 1. PARENT & CHILD PROFILE LOGIC
   // ==========================================
+  
   Stream<List<ChildProfile>> streamChildProfiles(String parentId) {
     return _db.collection('parents').doc(parentId).collection('profiles')
         .snapshots().map((l) => l.docs.map((d) => ChildProfile.fromMap(d.data(), d.id)).toList());
@@ -41,13 +42,8 @@ class DatabaseService {
   }
 
   // ==========================================
-  // 2. REWARDS & AI PROGRESS
+  // 2. REWARDS & PROGRESS LOGIC
   // ==========================================
-  Future<void> unlockBadge(String parentId, String childId, String badgeId) async {
-    await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).update({
-      'badges': FieldValue.arrayUnion([badgeId])
-    });
-  }
 
   Future<void> addStars(String parentId, String childId, int count) async {
     await _db.collection('parents').doc(parentId).collection('profiles').doc(childId).update({
@@ -60,10 +56,10 @@ class DatabaseService {
         .update({'masteryScores.$conceptId': score});
 
     if (score >= 0.5 && score < 0.55) {
-      _logNotification(parentId, "Milestone Reached! 🌟", "$childName earned 2 stars in $category!", 'progress');
+      _logNotification(parentId, "Milestone Reached! 🌟", "$childName earned stars in $category!", 'progress');
       NotificationService().notifyProgress(childName, category, 2);
     } else if (score >= 0.8 && score < 0.85) {
-      _logNotification(parentId, "Mastery Achieved! 🏆", "$childName is now a Genius in $category!", 'progress');
+      _logNotification(parentId, "Mastery Achieved! 🏆", "$childName mastered $category!", 'progress');
       NotificationService().notifyProgress(childName, category, 3);
     }
   }
@@ -80,6 +76,8 @@ class DatabaseService {
   // ==========================================
   // 3. ADMIN CONTENT MANAGEMENT
   // ==========================================
+
+  // --- CATEGORIES ---
   Stream<List<Map<String, dynamic>>> streamCategories() {
     return _db.collection('categories').orderBy('order').snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
@@ -89,54 +87,63 @@ class DatabaseService {
   Future<void> updateCategory(String id, Map<String, dynamic> data) async => await _db.collection('categories').doc(id).update(data);
   Future<void> deleteCategory(String id) async => await _db.collection('categories').doc(id).delete();
 
-  Future<void> addConcept(Concept c) async => await _db.collection('concepts').add(c.toMap());
+  // --- CONCEPTS (Lessons) ---
   
+  // FIX: This method was missing, required by ContentReviewScreen
   Stream<List<Concept>> streamConcepts() {
-    return _db.collection('concepts').orderBy('order').snapshots().map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+    return _db.collection('concepts').orderBy('order').snapshots()
+        .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
   Stream<List<Concept>> streamConceptsByCategory(String category) {
-    return _db.collection('concepts').where('category', isEqualTo: category).orderBy('order').snapshots().map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+    return _db.collection('concepts').where('category', isEqualTo: category).orderBy('order').snapshots()
+        .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
   Stream<List<Concept>> streamPublishedConceptsByCategory(String category) {
-    return _db.collection('concepts').where('category', isEqualTo: category).where('isPublished', isEqualTo: true).orderBy('order').snapshots().map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
+    return _db.collection('concepts').where('category', isEqualTo: category).where('isPublished', isEqualTo: true).orderBy('order').snapshots()
+        .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
   }
 
+  Future<void> addConcept(Concept c) async => await _db.collection('concepts').add(c.toMap());
   Future<void> updateConcept(String id, Map<String, dynamic> data) async => await _db.collection('concepts').doc(id).update(data);
   Future<void> deleteConcept(String id) async => await _db.collection('concepts').doc(id).delete();
   Future<void> toggleConceptVisibility(String id, bool status) async => await _db.collection('concepts').doc(id).update({'isPublished': status});
 
+  // --- ACTIVITIES (Game Modes) ---
+  
   Future<void> addActivity(Activity a) async => await _db.collection('activities').add(a.toMap());
   Future<void> updateActivity(String id, Map<String, dynamic> data) async => await _db.collection('activities').doc(id).update(data);
   Future<void> deleteActivity(String id) async => await _db.collection('activities').doc(id).delete();
 
   Stream<List<Activity>> streamActivitiesForConcept(String cid) {
-    return _db.collection('activities').where('conceptId', isEqualTo: cid).snapshots().map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
+    return _db.collection('activities').where('conceptId', isEqualTo: cid).snapshots()
+        .map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
+  Stream<List<Activity>> streamAllActivities() {
+    return _db.collection('activities').snapshots()
+        .map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
+  }
+
+  // --- STORIES (Magic Story Library) ---
+  
   Future<void> addStory(KidStory story) async => await _db.collection('stories').add(story.toMap());
   Future<void> deleteStory(String id) async => await _db.collection('stories').doc(id).delete();
-  Stream<List<KidStory>> streamStories() => _db.collection('stories').snapshots().map((l) => l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
+  
+  Stream<List<KidStory>> streamStories() {
+    return _db.collection('stories').snapshots()
+        .map((l) => l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
+  }
 
   // ==========================================
-  // 4. GLOBAL MONITORING & QA (FIXED)
+  // 4. MONITORING & NOTIFICATIONS
   // ==========================================
-  
-  // RESTORED: Needed for AccountHelpScreen
+
   Stream<QuerySnapshot> streamAllParents() {
     return _db.collection('users').where('role', isEqualTo: 'parent').snapshots();
   }
 
-  // RESTORED: Needed for ContentReviewScreen
-  Stream<List<Activity>> streamAllActivities() {
-    return _db.collection('activities').snapshots().map((l) => 
-        l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
-  }
-
-  // ==========================================
-  // 5. SMART NOTIFICATIONS LOGIC
-  // ==========================================
   Future<void> _logNotification(String uid, String title, String body, String type) async {
     await _db.collection('parents').doc(uid).collection('notifications').add({
       'title': title, 'body': body, 'type': type, 'timestamp': FieldValue.serverTimestamp(), 'isRead': false,
@@ -146,8 +153,7 @@ class DatabaseService {
   Stream<int> streamUnreadCount(String uid) {
     return _db.collection('parents').doc(uid).collection('notifications')
         .where('isRead', isEqualTo: false)
-        .snapshots()
-        .map((snap) => snap.docs.length);
+        .snapshots().map((snap) => snap.docs.length);
   }
 
   Future<void> markNotificationsAsRead(String uid) async {
@@ -161,21 +167,17 @@ class DatabaseService {
     await batch.commit();
   }
 
-  // --- TRIGGER STRUGGLE NOTIFICATION ---
   Future<void> logStruggleAlert(String uid, String childId, String childName, String conceptName, String category) async {
     String title = "Help Needed: $conceptName 💡";
-    String body = "$childName is finding $conceptName tricky. Try an offline tracing game together!";
-    
-    // 1. Send the actual phone notification
+    String body = "$childName is finding $conceptName tricky. Try an offline game together!";
     NotificationService().notifyStruggle(childName, conceptName, category);
-
-    // 2. Save to the persistent history log
     await _logNotification(uid, title, body, 'struggle');
   }
 
   // ==========================================
-  // 6. SCREEN TIME & CONFIG
+  // 5. USAGE TRACKING (Screen Time)
   // ==========================================
+
   Future<void> updateUsageHeartbeat(String childId) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
@@ -189,9 +191,13 @@ class DatabaseService {
         bool isNewDay = lastDate.day != now.day || lastDate.month != now.month || lastDate.year != now.year;
         int limit = data['dailyLimit'] ?? 30;
         String name = data['name'] ?? "Child";
+        int currentStreak = data['streak'] ?? 0;
 
         if (isNewDay) {
-          await docRef.update({'minutesSpentToday': 1, 'lastSessionDate': Timestamp.fromDate(now)});
+          DateTime yesterday = DateTime(now.year, now.month, now.day - 1);
+          bool wasActiveYesterday = lastDate.year == yesterday.year && lastDate.month == yesterday.month && lastDate.day == yesterday.day;
+          int newStreak = wasActiveYesterday ? currentStreak + 1 : 1;
+          await docRef.update({'minutesSpentToday': 1, 'lastSessionDate': Timestamp.fromDate(now), 'streak': newStreak});
         } else {
           await docRef.update({'minutesSpentToday': FieldValue.increment(1), 'lastSessionDate': Timestamp.fromDate(now)});
           final freshDoc = await docRef.get();
@@ -208,41 +214,27 @@ class DatabaseService {
     } catch (e) { debugPrint("Heartbeat Error: $e"); }
   }
 
-  Future<Map<String, String>> getConceptNames() async {
-    var snap = await _db.collection('concepts').get();
-    return {for (var d in snap.docs) d.id: d.data()['name'] ?? 'Lesson'};
-  }
-
-  Future<void> updateAIConfig(Map<String, dynamic> config) async => await _db.collection('settings').doc('ai_config').set(config, SetOptions(merge: true));
-  Future<Map<String, dynamic>> getAIConfig() async { var doc = await _db.collection('settings').doc('ai_config').get(); return doc.data() ?? {'pGuess': 0.2, 'pSlip': 0.1, 'masteryThreshold': 0.8, 'redirectionLimit': 2}; }
-
   // ==========================================
-  // 7. ADMIN ANALYTICS
+  // 6. ANALYTICS (Admin Console)
   // ==========================================
+
   Future<Map<String, dynamic>> getPlatformAnalytics() async {
     try {
       final allProfiles = await _db.collectionGroup('profiles').get();
       final docs = allProfiles.docs;
-      
       int totalChildren = docs.length;
       int activeToday = 0;
       double totalStars = 0;
       int totalMasteries = 0;
       double totalUsageMinutes = 0;
       List<Map<String, dynamic>> childPerformance = [];
-      
       DateTime today = DateTime.now();
       
       for (var doc in docs) {
         final data = doc.data();
-        final childName = data['name'] ?? 'Unknown';
-        final childAge = data['age'] ?? 0;
-        
-        // System usage metrics
         totalStars += (data['totalStars'] ?? 0).toDouble();
         totalUsageMinutes += (data['minutesSpentToday'] ?? 0).toDouble();
         
-        // Check if active today
         if (data['lastSessionDate'] != null) {
           DateTime lastSession = (data['lastSessionDate'] as Timestamp).toDate();
           if (lastSession.year == today.year && lastSession.month == today.month && lastSession.day == today.day) {
@@ -250,7 +242,6 @@ class DatabaseService {
           }
         }
         
-        // Learning analytics
         Map<String, double> masteryScores = {};
         if (data['masteryScores'] != null) {
           (data['masteryScores'] as Map<String, dynamic>).forEach((key, value) {
@@ -258,109 +249,39 @@ class DatabaseService {
           });
         }
         
-        int childMasteries = 0;
-        double childAverageScore = 0;
-        if (masteryScores.isNotEmpty) {
-          childMasteries = masteryScores.values.where((score) => score >= 0.8).length;
-          childAverageScore = masteryScores.values.reduce((a, b) => a + b) / masteryScores.length;
-          totalMasteries += childMasteries;
-        }
+        int childMasteries = masteryScores.values.where((score) => score >= 0.8).length;
+        totalMasteries += childMasteries;
         
         childPerformance.add({
-          'name': childName,
-          'age': childAge,
-          'masteries': childMasteries,
-          'averageScore': childAverageScore,
-          'stars': data['totalStars'] ?? 0,
-          'minutesToday': data['minutesSpentToday'] ?? 0,
+          'name': data['name'] ?? 'Unknown',
+          'averageScore': masteryScores.isNotEmpty ? masteryScores.values.reduce((a, b) => a + b) / masteryScores.length : 0,
         });
       }
       
-      // Calculate average metrics
-      double avgUsagePerChild = totalChildren > 0 ? totalUsageMinutes / totalChildren : 0;
-      double avgMasteryPerChild = totalChildren > 0 ? totalMasteries / totalChildren : 0;
-      double avgStarsPerChild = totalChildren > 0 ? totalStars / totalChildren : 0;
-      double avgScore = 0;
-      
-      // Calculate average mastery score across all children
-      int totalScoresCount = 0;
-      double sumAllScores = 0;
-      for (var doc in docs) {
-        final data = doc.data();
-        if (data['masteryScores'] != null) {
-          Map<String, dynamic> scores = data['masteryScores'] as Map<String, dynamic>;
-          scores.forEach((key, value) {
-            sumAllScores += (value as num).toDouble();
-            totalScoresCount++;
-          });
-        }
-      }
-      if (totalScoresCount > 0) {
-        avgScore = sumAllScores / totalScoresCount;
-      }
-      
-      // Sort children by performance
       childPerformance.sort((a, b) => (b['averageScore'] as double).compareTo(a['averageScore'] as double));
-      List<Map<String, dynamic>> topPerformers = childPerformance.take(5).toList();
-      List<Map<String, dynamic>> struggling = childPerformance.where((c) => (c['averageScore'] as double) < 0.5 && (c['averageScore'] as double) > 0).toList().take(5).toList();
-      
-      // Calculate engagement rate
-      double engagementRate = totalChildren > 0 ? (activeToday / totalChildren) * 100 : 0;
-      
+
       return {
         'totalChildren': totalChildren,
         'activeToday': activeToday,
-        'engagementRate': engagementRate,
+        'engagementRate': totalChildren > 0 ? (activeToday / totalChildren) * 100 : 0,
         'totalStars': totalStars.toInt(),
         'totalMasteries': totalMasteries,
-        'avgUsagePerChild': avgUsagePerChild.toInt(),
-        'avgMasteryPerChild': avgMasteryPerChild.toStringAsFixed(1),
-        'avgStarsPerChild': avgStarsPerChild.toStringAsFixed(1),
-        'avgScore': (avgScore * 100).toStringAsFixed(1),
-        'topPerformers': topPerformers,
-        'struggling': struggling,
-        'totalUsageMinutes': totalUsageMinutes.toInt(),
+        'avgUsagePerChild': totalChildren > 0 ? (totalUsageMinutes / totalChildren).toInt() : 0,
+        'topPerformers': childPerformance.take(5).toList(),
+        'avgScore': totalChildren > 0 ? (totalStars / totalChildren).toStringAsFixed(1) : "0",
       };
-    } catch (e) {
-      debugPrint("Analytics Error: $e");
-      return {};
-    }
+    } catch (e) { return {}; }
   }
 
-  Future<List<Map<String, dynamic>>> getChildrenPerformance({int limit = 10}) async {
-    try {
-      final allProfiles = await _db.collectionGroup('profiles').get();
-      List<Map<String, dynamic>> performance = [];
-      
-      for (var doc in allProfiles.docs) {
-        final data = doc.data();
-        Map<String, double> masteryScores = {};
-        
-        if (data['masteryScores'] != null) {
-          (data['masteryScores'] as Map<String, dynamic>).forEach((key, value) {
-            masteryScores[key] = (value as num).toDouble();
-          });
-        }
-        
-        double avgScore = masteryScores.isNotEmpty 
-            ? masteryScores.values.reduce((a, b) => a + b) / masteryScores.length 
-            : 0;
-        
-        performance.add({
-          'name': data['name'] ?? 'Unknown',
-          'age': data['age'] ?? 0,
-          'averageScore': avgScore,
-          'masteryCount': masteryScores.values.where((s) => s >= 0.8).length,
-          'stars': data['totalStars'] ?? 0,
-          'badges': (data['badges'] as List<dynamic>?)?.length ?? 0,
-        });
-      }
-      
-      performance.sort((a, b) => (b['averageScore'] as double).compareTo(a['averageScore'] as double));
-      return performance.take(limit).toList();
-    } catch (e) {
-      debugPrint("Performance Error: $e");
-      return [];
-    }
+  Future<Map<String, String>> getConceptNames() async {
+    var snap = await _db.collection('concepts').get();
+    return {for (var d in snap.docs) d.id: d.data()['name'] ?? 'Lesson'};
+  }
+
+  Future<void> updateAIConfig(Map<String, dynamic> config) async => await _db.collection('settings').doc('ai_config').set(config, SetOptions(merge: true));
+  
+  Future<Map<String, dynamic>> getAIConfig() async { 
+    var doc = await _db.collection('settings').doc('ai_config').get(); 
+    return doc.data() ?? {'pGuess': 0.2, 'pSlip': 0.1, 'masteryThreshold': 0.8, 'redirectionLimit': 2}; 
   }
 }
