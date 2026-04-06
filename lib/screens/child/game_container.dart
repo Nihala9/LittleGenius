@@ -43,7 +43,7 @@ class _GameContainerState extends State<GameContainer> {
 
   late ConfettiController _confettiController;
   late Activity _currentActivity;
-  late DateTime _levelStartTime;
+  late DateTime _levelStartTime; // For real score tracking
 
   int _localAttempts = 0;
   int _adminLimit = 2;
@@ -78,7 +78,7 @@ class _GameContainerState extends State<GameContainer> {
     super.dispose();
   }
 
-  // --- NATIVE AI TUTOR HINT ---
+  // --- NATIVE AI TUTOR HINT (Localized & Smart) ---
   void _getSmartHint() {
     String lang = widget.child.language;
     String mode = _currentActivity.activityMode;
@@ -89,7 +89,7 @@ class _GameContainerState extends State<GameContainer> {
       if (mode == "Tracing") {
         msg = "$concept വരയ്ക്കാൻ ശ്രമിക്കൂ, നിങ്ങൾക്ക് ഇത് ചെയ്യാൻ കഴിയും!";
       } else {
-        msg = "ഒന്നുകൂടി ശ്രദ്ധിച്ചു നോക്കൂ!";
+        msg = "ഒന്നുകൂടി ശ്രദ്ധിച്ചു നോക്കൂ, നിങ്ങൾക്ക് ഇത് കണ്ടെത്താം!";
       }
     } else if (lang == "Hindi") {
       msg = "चिंता मत करो, एक बार फिर कोशिश करो। आप $concept को पहचान सकते हैं!";
@@ -116,6 +116,7 @@ class _GameContainerState extends State<GameContainer> {
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.only(bottom: 100, left: 20, right: 20),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -123,7 +124,18 @@ class _GameContainerState extends State<GameContainer> {
   void _startActivity() async {
     String lang = widget.child.language;
     String concept = widget.concept.name;
-    String msg = (lang == "Malayalam") ? "നമുക്ക് $concept പഠിക്കാം!" : "Let's learn $concept!";
+    String msg = "";
+
+    if (lang == "Malayalam") {
+      msg = "നമുക്ക് $concept പഠിക്കാം!";
+    } else if (lang == "Arabic") {
+      msg = "فلنتعلم $concept معا!";
+    } else if (lang == "Hindi") {
+      msg = "चलो $concept सीखते हैं!";
+    } else {
+      msg = "Let's learn $concept!";
+    }
+
     Future.delayed(const Duration(milliseconds: 700), () {
       _voice.speak(msg, lang);
     });
@@ -147,14 +159,14 @@ class _GameContainerState extends State<GameContainer> {
     }
   }
 
-  // --- SUCCESS LOGIC: POINTS UNDER 100 ---
+  // --- SUCCESS LOGIC: REAL SESSION PERFORMANCE ---
   void _handleSuccess(String uid) async {
     final secondsTaken = DateTime.now().difference(_levelStartTime).inSeconds;
 
     // Real score calculation (Max 100)
-    // 100 points - (10 per mistake) - (1 per 4 seconds)
+    // Points = 100 - (10 per mistake) - (1 per 4 seconds)
     int penalty = (_localAttempts * 10) + (secondsTaken ~/ 4);
-    int finalScore = (100 - penalty).clamp(30, 100);
+    int finalScore = (100 - penalty).clamp(35, 100);
 
     double currentMastery = widget.child.masteryScores[widget.concept.id] ?? 0.0;
     double newMastery = _aiLogic.calculateNewMastery(currentMastery, true);
@@ -165,10 +177,11 @@ class _GameContainerState extends State<GameContainer> {
     setState(() => _isCelebrating = true);
     _confettiController.play();
 
+    // Star threshold based on score
     int starCount = 3;
-    if (finalScore < 60) {
+    if (finalScore < 65) {
       starCount = 1;
-    } else if (finalScore < 85) {
+    } else if (finalScore < 88) {
       starCount = 2;
     }
 
@@ -188,7 +201,7 @@ class _GameContainerState extends State<GameContainer> {
             Navigator.pop(ctx);
             setState(() {
               _localAttempts = 0;
-              _levelStartTime = DateTime.now();
+              _levelStartTime = DateTime.now(); // Reset timer
               _isCelebrating = false;
               _sessionKey = DateTime.now().millisecondsSinceEpoch.toString();
             });
@@ -356,7 +369,7 @@ class _GameContainerState extends State<GameContainer> {
   }
 }
 
-// --- VICTORY DIALOG CLASS ---
+// --- HIGH FIDELITY VICTORY DIALOG ---
 class VictoryDialog extends StatelessWidget {
   final String levelName;
   final int stars;
@@ -399,52 +412,62 @@ class VictoryDialog extends StatelessWidget {
                   levelName.toUpperCase(),
                   style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, color: Color(0xFF7B5233)),
                 ),
-                const SizedBox(height: 15),
+                const SizedBox(height: 20),
+                
+                // STARS SECTION (Fixed Overflow with FittedBox)
                 SizedBox(
                   width: double.infinity,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(3, (index) {
-                        bool isFilled = index < stars;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 5),
-                          child: BounceInDown(
-                            delay: Duration(milliseconds: 200 * index),
-                            child: Icon(
-                              Icons.star_rounded,
-                              size: index == 1 ? 90 : 70,
-                              color: isFilled ? const Color(0xFFFFC107) : Colors.grey.shade300,
-                              shadows: isFilled ? [const Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))] : [],
+                  child: Center(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(3, (index) {
+                          bool isFilled = index < stars;
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 5),
+                            child: BounceInDown(
+                              delay: Duration(milliseconds: 200 * index),
+                              child: Icon(
+                                Icons.star_rounded,
+                                size: index == 1 ? 90 : 70,
+                                color: isFilled ? const Color(0xFFFFC107) : Colors.grey.shade300,
+                                shadows: isFilled ? [const Shadow(color: Colors.black26, blurRadius: 10, offset: Offset(0, 5))] : [],
+                              ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        }),
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(height: 25),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                  textBaseline: TextBaseline.alphabetic,
-                  children: [
-                    const Text("YOUR SCORE  ", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF7B5233))),
-                    TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0, end: score.toDouble()),
-                      duration: const Duration(seconds: 2),
-                      builder: (context, value, child) {
-                        return Text(
-                          value.toInt().toString(),
-                          style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.blueGrey),
-                        );
-                      },
-                    ),
-                    const Text(" / 100", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
-                  ],
+                
+                // SCORE SECTION (Animated Count-up)
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text("YOUR SCORE  ", style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF7B5233))),
+                      TweenAnimationBuilder<double>(
+                        tween: Tween(begin: 0, end: score.toDouble()),
+                        duration: const Duration(seconds: 2),
+                        builder: (context, value, child) {
+                          return Text(
+                            value.toInt().toString(),
+                            style: const TextStyle(fontSize: 42, fontWeight: FontWeight.bold, color: Colors.blueGrey),
+                          );
+                        },
+                      ),
+                      const Text(" / 100", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey)),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 35),
+                
+                // BUTTONS
                 Row(
                   children: [
                     Expanded(child: _btn("REPLAY", const Color(0xFF3498DB), onReplay)),
@@ -455,6 +478,8 @@ class VictoryDialog extends StatelessWidget {
               ],
             ),
           ),
+          
+          // COMPLETE RIBBON
           Positioned(
             top: -35,
             child: ElasticInDown(

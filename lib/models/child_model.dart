@@ -16,6 +16,7 @@ class ChildProfile {
   int minutesSpentToday;
   int streak;
   DateTime? lastSessionDate;
+  List<int> usageHistory;
 
   ChildProfile({
     required this.id,
@@ -33,6 +34,7 @@ class ChildProfile {
     this.minutesSpentToday = 0,
     this.streak = 0,
     this.lastSessionDate,
+    this.usageHistory = const [0, 0, 0, 0, 0, 0, 0], // Default
   });
 
   factory ChildProfile.fromMap(Map<String, dynamic> data, String id) {
@@ -60,6 +62,7 @@ class ChildProfile {
       badges: List<String>.from(data['badges'] ?? []),
       minutesSpentToday: data['minutesSpentToday'] ?? 0,
       streak: data['streak'] ?? 0,
+      usageHistory: List<int>.from(data['usageHistory'] ?? [0, 0, 0, 0, 0, 0, 0]),
       lastSessionDate: data['lastSessionDate'] != null 
           ? (data['lastSessionDate'] as Timestamp).toDate() 
           : DateTime.now(),
@@ -81,6 +84,7 @@ class ChildProfile {
       'badges': badges,
       'minutesSpentToday': minutesSpentToday,
       'streak': streak,
+      'usageHistory': usageHistory, // Save history
       'lastSessionDate': lastSessionDate != null 
           ? Timestamp.fromDate(lastSessionDate!) 
           : FieldValue.serverTimestamp(),

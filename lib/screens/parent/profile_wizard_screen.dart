@@ -23,7 +23,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
   // --- DATA STATE ---
   final _nameController = TextEditingController();
   final _parentNameController = TextEditingController();
-  String _selectedClass = 'Pre-School';
+  String _selectedClass = 'Nursery';
   String _selectedLanguage = 'English';
   String _selectedIcon = 'assets/icons/profiles/p1.png';
 
@@ -72,7 +72,6 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
   }
 
   void _onNext() {
-    // Hide keyboard automatically when moving between steps
     FocusScope.of(context).unfocus();
 
     if (_currentStep < 3) {
@@ -86,6 +85,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     }
   }
 
+  // --- UPDATED SAVE LOGIC FOR UNIQUE GRAPHS ---
   void _save() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null || _nameController.text.isEmpty) return;
@@ -101,18 +101,25 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     };
 
     if (widget.existingChild == null) {
+      // NEW CHILD INITIALIZATION
       data.addAll({
         'preferredMode': 'Tracing', 
         'totalStars': 0, 
         'masteryScores': {}, 
         'badges': [],
         'createdAt': DateTime.now(), 
-        'dailyLimit': 30
+        'dailyLimit': 30,
+        'minutesSpentToday': 0,
+        'streak': 0,
+        // CRITICAL FIX: Initialize unique history array so every child has a fresh graph
+        'usageHistory': [0, 0, 0, 0, 0, 0, 0], 
       });
       await _db.updateChildProfile(user.uid, "new", data);
     } else {
+      // EDIT EXISTING CHILD
       await _db.updateChildProfile(user.uid, widget.existingChild!.id, data);
     }
+    
     if (mounted) Navigator.pop(context);
   }
 
@@ -120,11 +127,9 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFDFDFF),
-      // Prevents the background from resizing when keyboard appears
       resizeToAvoidBottomInset: false, 
       body: Stack(
         children: [
-          // --- AI BUDDY BACKGROUND ---
           Positioned(
             bottom: -20,
             right: -20,
@@ -134,8 +139,8 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
                 return Transform.translate(
                   offset: Offset(0, 15 * math.sin(_mascotController.value * math.pi)),
                   child: Opacity(
-                    opacity: 0.6, // Faded so it doesn't distract from forms
-                    child: Image.asset('assets/images/buddy.png', height: 200),
+                    opacity: 0.6,
+                    child: Image.asset('assets/images/buddy.png', height: 200, errorBuilder: (c,e,s) => const Icon(Icons.face, size: 100)),
                   ),
                 );
               },
@@ -192,7 +197,6 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     );
   }
 
-  // --- STEP 1: NAME ---
   Widget _stepName() => SingleChildScrollView(
     padding: const EdgeInsets.symmetric(horizontal: 40),
     child: Column(
@@ -229,7 +233,6 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     ),
   );
 
-  // --- STEP 2: CLASS GRID ---
   Widget _stepClassGrid() => SingleChildScrollView(
     padding: const EdgeInsets.all(25),
     child: Column(
@@ -252,7 +255,7 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
         Padding(
           padding: EdgeInsets.only(bottom: !isLastRow ? 15 : 0),
           child: hasOnlyOneItemInLastRow
-              ? _buildClassItem(i) // Single item spans full width
+              ? _buildClassItem(i)
               : Row(
                   children: [
                     Expanded(child: _buildClassItem(i)),
@@ -289,13 +292,12 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     );
   }
 
-  // --- STEP 3: BADGE PICKER ---
   Widget _stepBadgePicker() => SingleChildScrollView(
     padding: const EdgeInsets.all(25),
     child: Column(
       children: [
         const Text("Pick your", style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900)),
-        const Text("Badge", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
+        const Text("Avatar", style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: Colors.lightBlue)),
         const SizedBox(height: 20),
         Wrap(
           spacing: 15, runSpacing: 15,
@@ -314,7 +316,6 @@ class _ProfileWizardScreenState extends State<ProfileWizardScreen> with TickerPr
     ),
   );
 
-  // --- STEP 4: LANGUAGE ---
   Widget _stepLanguage() => SingleChildScrollView(
     padding: const EdgeInsets.all(25),
     child: Column(

@@ -21,7 +21,6 @@ class ParentDashboard extends StatefulWidget {
 class _ParentDashboardState extends State<ParentDashboard> {
   final db = DatabaseService();
 
-  // Helper for dynamic colors in the category list
   Color _getDynamicCategoryColor(String name) {
     if (name.contains("Math") || name.contains("Numbers")) return Colors.blueAccent;
     if (name.contains("Reading") || name.contains("Alpha")) return Colors.purpleAccent;
@@ -74,13 +73,12 @@ class _ParentDashboardState extends State<ParentDashboard> {
                           const SizedBox(height: 25),
                           _buildMasteryCard(activeChild, categories, concepts),
                           const SizedBox(height: 25),
-                          _buildActivityChartSection(),
+                          _buildActivityChartSection(activeChild), // FIXED MON-SUN GRAPH
                           const SizedBox(height: 25),
                           _buildRecentActivity(activeChild, concepts),
                         ],
                       ),
 
-                      // PREMIUM THEMED BUTTON
                       Positioned(
                         bottom: 20, left: 20, right: 20,
                         child: ElevatedButton(
@@ -90,18 +88,15 @@ class _ParentDashboardState extends State<ParentDashboard> {
                             minimumSize: const Size(double.infinity, 65),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                             elevation: 8,
-                            shadowColor: AppColors.ultraViolet.withOpacity(0.4),
+                            shadowColor: AppColors.ultraViolet.withValues(alpha: 0.4),
                           ),
                           onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(
-                              builder: (c) => ChildInsightsScreen(child: activeChild)
-                            ));
+                            Navigator.push(context, MaterialPageRoute(builder: (c) => ChildInsightsScreen(child: activeChild)));
                           },
                           child: const Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Text("VIEW LEARNING INSIGHTS", 
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                              Text("VIEW LEARNING INSIGHTS", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
                               SizedBox(width: 10),
                               Icon(Icons.auto_awesome, size: 20),
                             ],
@@ -119,7 +114,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  // --- 1. PREMIUM HEADER ---
   Widget _buildHeader(ChildProfile child) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -127,42 +121,22 @@ class _ParentDashboardState extends State<ParentDashboard> {
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              "Hello, ${child.parentName ?? 'Parent'}", 
-              style: const TextStyle(
-                fontSize: 28, 
-                fontWeight: FontWeight.w900, 
-                fontFamily: 'serif',
-                color: AppColors.childNavy,
-                letterSpacing: -0.5,
-              )
-            ),
-            Text(
-              "${child.name} is shining bright today!", 
-              style: TextStyle(fontSize: 14, color: Colors.blueGrey.shade600, fontWeight: FontWeight.w500),
-            ),
+            Text("Hello, ${child.parentName ?? 'Parent'}", 
+              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w900, fontFamily: 'serif', color: AppColors.childNavy, letterSpacing: -0.5)),
+            Text("${child.name} is shining bright today!", style: TextStyle(fontSize: 14, color: Colors.blueGrey.shade600, fontWeight: FontWeight.w500)),
           ],
         ),
         GestureDetector(
           onTap: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ProfileWizardScreen(existingChild: child))),
           child: Container(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 3),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10)],
-            ),
-            child: CircleAvatar(
-              radius: 28,
-              backgroundColor: AppColors.lemonChiffon,
-              backgroundImage: AssetImage(child.avatarUrl),
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: Colors.white, width: 3), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)]),
+            child: CircleAvatar(radius: 28, backgroundColor: AppColors.lemonChiffon, backgroundImage: AssetImage(child.avatarUrl)),
           ),
         ),
       ],
     );
   }
 
-  // --- 2. QUICK STATS ---
   Widget _buildQuickStats(ChildProfile child) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -178,18 +152,10 @@ class _ParentDashboardState extends State<ParentDashboard> {
     return Container(
       width: MediaQuery.of(context).size.width * 0.28,
       padding: const EdgeInsets.symmetric(vertical: 18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(25),
-        boxShadow: [BoxShadow(color: color.withOpacity(0.1), blurRadius: 10, offset: const Offset(0, 4))],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: color.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 4))]),
       child: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
-            child: Icon(icon, color: color, size: 20),
-          ),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: bg, shape: BoxShape.circle), child: Icon(icon, color: color, size: 20)),
           const SizedBox(height: 10),
           Text(value, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade500, fontWeight: FontWeight.w900, letterSpacing: 0.5)),
@@ -198,11 +164,8 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  // --- 3. MASTERY CARD (ALL CATEGORIES) ---
   Widget _buildMasteryCard(ChildProfile child, List<Map<String, dynamic>> categories, List<Concept> concepts) {
-    double totalMastery = child.masteryScores.isEmpty ? 0.0 : 
-      child.masteryScores.values.reduce((a, b) => a + b) / child.masteryScores.length;
-
+    double totalMastery = child.masteryScores.isEmpty ? 0.0 : child.masteryScores.values.reduce((a, b) => a + b) / child.masteryScores.length;
     final activeCategories = categories.where((cat) {
       final ids = concepts.where((c) => c.category == cat['name']).map((c) => c.id).toList();
       return ids.any((id) => child.masteryScores.containsKey(id));
@@ -210,28 +173,18 @@ class _ParentDashboardState extends State<ParentDashboard> {
 
     return Container(
       padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 15)],
-      ),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(30), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 15)]),
       child: Column(
         children: [
           CircularPercentIndicator(
             radius: 60.0, lineWidth: 12.0, percent: totalMastery,
-            center: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text("${(totalMastery * 100).toInt()}%", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Text("TOTAL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey)),
-              ],
-            ),
-            progressColor: Colors.pinkAccent, backgroundColor: Colors.pink.shade50,
-            circularStrokeCap: CircularStrokeCap.round, animation: true,
+            center: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Text("${(totalMastery * 100).toInt()}%", style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.childNavy)), const Text("TOTAL", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey))]),
+            progressColor: Colors.pinkAccent, backgroundColor: Colors.pink.shade50, circularStrokeCap: CircularStrokeCap.round, animation: true,
           ),
           const SizedBox(height: 25),
           const Align(alignment: Alignment.centerLeft, child: Text("Subject Breakdown", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
           const SizedBox(height: 15),
+          if (activeCategories.isEmpty) const Text("No progress data yet", style: TextStyle(color: Colors.grey)),
           ...activeCategories.map((cat) {
             double avg = _calculateCategoryAvg(child, cat['name'], concepts);
             return _colorfulProgress(cat['name'], avg, _getDynamicCategoryColor(cat['name']));
@@ -241,14 +194,22 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  // --- 4. MODERN PARENT-FRIENDLY GRAPH ---
-  Widget _buildActivityChartSection() {
+  // --- 4. FIXED WEEK GRAPH (MON-SUN) ---
+  Widget _buildActivityChartSection(ChildProfile child) {
+    List<int> history = child.usageHistory;
+    List<FlSpot> spots = [];
+    
+    // Monday (0) to Sunday (6)
+    for (int i = 0; i < 7; i++) {
+      spots.add(FlSpot(i.toDouble(), history[i].toDouble()));
+    }
+
     return Container(
-      height: 300,
-      padding: const EdgeInsets.all(24),
+      height: 300, padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(35),
-        boxShadow: [BoxShadow(color: AppColors.ultraViolet.withOpacity(0.06), blurRadius: 20, offset: const Offset(0, 10))],
+        color: Colors.white, 
+        borderRadius: BorderRadius.circular(35), 
+        boxShadow: [BoxShadow(color: AppColors.ultraViolet.withValues(alpha: 0.06), blurRadius: 20, offset: const Offset(0, 10))]
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -257,40 +218,53 @@ class _ParentDashboardState extends State<ParentDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.start, 
                 children: [
-                  Text("Weekly Journey", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.childNavy)),
-                  Text("Minutes spent learning", style: TextStyle(fontSize: 12, color: Colors.grey, fontWeight: FontWeight.w500)),
-                ],
+                  Text("Weekly Activity", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.childNavy)), 
+                  Text("Mon - Sun usage trend", style: TextStyle(fontSize: 12, color: Colors.grey))
+                ]
               ),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: AppColors.lemonChiffon, borderRadius: BorderRadius.circular(12)),
-                child: const Row(children: [Icon(Icons.check_circle, size: 14, color: AppColors.ultraViolet), SizedBox(width: 4), Text("Healthy Zone", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ultraViolet))]),
-              )
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), 
+                decoration: BoxDecoration(color: AppColors.lemonChiffon, borderRadius: BorderRadius.circular(12)), 
+                child: const Row(children: [Icon(Icons.calendar_month, size: 14, color: AppColors.ultraViolet), SizedBox(width: 4), Text("This Week", style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.ultraViolet))])
+              ),
             ],
           ),
           const SizedBox(height: 30),
           Expanded(
             child: LineChart(
               LineChartData(
+                minX: 0, maxX: 6, minY: 0,
                 gridData: const FlGridData(show: false),
                 titlesData: FlTitlesData(
                   rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, reservedSize: 30, getTitlesWidget: (v, m) => Text("${v.toInt()}m", style: const TextStyle(color: Colors.grey, fontSize: 10)))),
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) {
-                    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-                    return Text(days[v.toInt() % 7], style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 12));
-                  })),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget: (v, m) {
+                        // FIXED MAPPING
+                        const dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        int index = v.toInt();
+                        if (index < 0 || index >= dayLabels.length) return const SizedBox();
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(dayLabels[index], style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 10)),
+                        );
+                      }
+                    ),
+                  ),
                 ),
                 borderData: FlBorderData(show: false),
                 lineBarsData: [
                   LineChartBarData(
-                    spots: const [FlSpot(0, 15), FlSpot(1, 25), FlSpot(2, 20), FlSpot(3, 40), FlSpot(4, 30), FlSpot(5, 45), FlSpot(6, 35)],
+                    spots: spots,
                     isCurved: true, color: AppColors.ultraViolet, barWidth: 5, isStrokeCapRound: true,
                     dotData: FlDotData(show: true, getDotPainter: (s, p, b, i) => FlDotCirclePainter(radius: 4, color: Colors.white, strokeWidth: 3, strokeColor: AppColors.ultraViolet)),
-                    belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [AppColors.ultraViolet.withOpacity(0.2), AppColors.lemonChiffon.withOpacity(0.4), Colors.white.withOpacity(0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
+                    belowBarData: BarAreaData(show: true, gradient: LinearGradient(colors: [AppColors.ultraViolet.withValues(alpha: 0.2), AppColors.lemonChiffon.withValues(alpha: 0.4), Colors.white.withValues(alpha: 0)], begin: Alignment.topCenter, end: Alignment.bottomCenter)),
                   ),
                 ],
               ),
@@ -301,87 +275,30 @@ class _ParentDashboardState extends State<ParentDashboard> {
     );
   }
 
-  // --- 5. RECENT ADVENTURES ---
   Widget _buildRecentActivity(ChildProfile child, List<Concept> concepts) {
     final recentEntries = child.masteryScores.entries.toList().reversed.take(3).toList();
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text("Recent Activity", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.childNavy)),
-            TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChildInsightsScreen(child: child))),
-              child: const Text("View All", style: TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)),
-            )
-          ],
-        ),
-        if (recentEntries.isEmpty)
-          const Center(child: Padding(padding: EdgeInsets.all(20), child: Text("No adventures yet!")))
-        else
-          ...recentEntries.map((entry) {
-            final concept = concepts.firstWhere((c) => c.id == entry.key, orElse: () => Concept(id: '', name: 'Learning...', category: 'General', order: 0));
-            return _activityTile(concept.name, concept.category, entry.value);
-          }),
+        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [const Text("Recent adventures", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 18, color: AppColors.childNavy)), TextButton(onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (c) => ChildInsightsScreen(child: child))), child: const Text("View All", style: TextStyle(color: AppColors.ultraViolet, fontWeight: FontWeight.bold)))]),
+        if (recentEntries.isEmpty) const Center(child: Text("No activity yet"))
+        else ...recentEntries.map((entry) {
+          final concept = concepts.firstWhere((c) => c.id == entry.key, orElse: () => Concept(id: '', name: 'Learning...', category: 'General', order: 0));
+          return _activityTile(concept.name, concept.category, entry.value);
+        }),
       ],
     );
   }
 
-  // --- UI HELPER: PROGRESS BARS ---
   Widget _colorfulProgress(String label, double val, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-              Text("${(val * 100).toInt()}%", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
-            ],
-          ),
-          const SizedBox(height: 6),
-          LinearPercentIndicator(
-            lineHeight: 10.0, percent: val, progressColor: color, backgroundColor: color.withOpacity(0.1),
-            barRadius: const Radius.circular(20), padding: EdgeInsets.zero, animation: true,
-          ),
-        ],
-      ),
-    );
+    return Padding(padding: const EdgeInsets.only(bottom: 15), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)), Text("${(val * 100).toInt()}%", style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color))]), const SizedBox(height: 6), LinearPercentIndicator(lineHeight: 10.0, percent: val, progressColor: color, backgroundColor: color.withValues(alpha: 0.1), barRadius: const Radius.circular(20), padding: EdgeInsets.zero, animation: true)]));
   }
 
-  // --- UI HELPER: RECENT ACTIVITY TILES ---
   Widget _activityTile(String title, String category, double score) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(25),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.02), blurRadius: 10)],
-        border: Border.all(color: AppColors.ultraViolet.withOpacity(0.05)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            height: 50, width: 50, decoration: BoxDecoration(color: AppColors.lemonChiffon, borderRadius: BorderRadius.circular(15)),
-            child: const Center(child: Icon(Icons.auto_awesome_rounded, color: AppColors.ultraViolet, size: 24)),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-              Text(category.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.ultraViolet.withOpacity(0.6))),
-            ]),
-          ),
-          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-            Text("${(score * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.ultraViolet)),
-            const Text("MASTERED", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey)),
-          ]),
-        ],
-      ),
+      margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(25), boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10)], border: Border.all(color: AppColors.ultraViolet.withValues(alpha: 0.05))),
+      child: Row(children: [Container(height: 50, width: 50, decoration: BoxDecoration(color: AppColors.lemonChiffon, borderRadius: BorderRadius.circular(15)), child: const Center(child: Icon(Icons.auto_awesome_rounded, color: AppColors.ultraViolet, size: 24))), const SizedBox(width: 15), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), Text(category.toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.ultraViolet.withValues(alpha: 0.6)))])), Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Text("${(score * 100).toInt()}%", style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.ultraViolet)), const Text("MASTERED", style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: Colors.grey))])]),
     );
   }
 
@@ -394,15 +311,6 @@ class _ParentDashboardState extends State<ParentDashboard> {
   }
 
   Widget _buildNoChildView(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lemonChiffon,
-      body: Center(
-        child: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.ultraViolet),
-          onPressed: () => Navigator.pushNamed(context, '/add_child'), 
-          child: const Text("CREATE PROFILE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold))
-        )
-      ),
-    );
+    return Scaffold(backgroundColor: AppColors.lemonChiffon, body: Center(child: ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: AppColors.ultraViolet), onPressed: () => Navigator.pushNamed(context, '/add_child'), child: const Text("CREATE PROFILE", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)))));
   }
 }

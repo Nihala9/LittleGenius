@@ -77,7 +77,6 @@ class DatabaseService {
   // 3. ADMIN CONTENT MANAGEMENT
   // ==========================================
 
-  // --- CATEGORIES ---
   Stream<List<Map<String, dynamic>>> streamCategories() {
     return _db.collection('categories').orderBy('order').snapshots()
         .map((snapshot) => snapshot.docs.map((doc) => {'id': doc.id, ...doc.data()}).toList());
@@ -87,9 +86,6 @@ class DatabaseService {
   Future<void> updateCategory(String id, Map<String, dynamic> data) async => await _db.collection('categories').doc(id).update(data);
   Future<void> deleteCategory(String id) async => await _db.collection('categories').doc(id).delete();
 
-  // --- CONCEPTS (Lessons) ---
-  
-  // FIX: This method was missing, required by ContentReviewScreen
   Stream<List<Concept>> streamConcepts() {
     return _db.collection('concepts').orderBy('order').snapshots()
         .map((l) => l.docs.map((d) => Concept.fromMap(d.data(), d.id)).toList());
@@ -110,8 +106,6 @@ class DatabaseService {
   Future<void> deleteConcept(String id) async => await _db.collection('concepts').doc(id).delete();
   Future<void> toggleConceptVisibility(String id, bool status) async => await _db.collection('concepts').doc(id).update({'isPublished': status});
 
-  // --- ACTIVITIES (Game Modes) ---
-  
   Future<void> addActivity(Activity a) async => await _db.collection('activities').add(a.toMap());
   Future<void> updateActivity(String id, Map<String, dynamic> data) async => await _db.collection('activities').doc(id).update(data);
   Future<void> deleteActivity(String id) async => await _db.collection('activities').doc(id).delete();
@@ -126,18 +120,13 @@ class DatabaseService {
         .map((l) => l.docs.map((d) => Activity.fromMap(d.data(), d.id)).toList());
   }
 
-  // --- STORIES (Magic Story Library) ---
-  
   Future<void> addStory(KidStory story) async => await _db.collection('stories').add(story.toMap());
   Future<void> deleteStory(String id) async => await _db.collection('stories').doc(id).delete();
-  
-  Stream<List<KidStory>> streamStories() {
-    return _db.collection('stories').snapshots()
-        .map((l) => l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
-  }
+  Stream<List<KidStory>> streamStories() => _db.collection('stories').snapshots()
+      .map((l) => l.docs.map((d) => KidStory.fromMap(d.data(), d.id)).toList());
 
   // ==========================================
-  // 4. MONITORING & NOTIFICATIONS
+  // 4. NOTIFICATIONS & MONITORING
   // ==========================================
 
   Stream<QuerySnapshot> streamAllParents() {
@@ -175,43 +164,66 @@ class DatabaseService {
   }
 
   // ==========================================
-  // 5. USAGE TRACKING (Screen Time)
+  // 5. USAGE TRACKING (Fixed Monday-Sunday Logic)
   // ==========================================
 
   Future<void> updateUsageHeartbeat(String childId) async {
     try {
       final uid = FirebaseAuth.instance.currentUser?.uid;
       if (uid == null) return;
+      
       final docRef = _db.collection('parents').doc(uid).collection('profiles').doc(childId);
       final doc = await docRef.get();
+      
       if (doc.exists) {
         final data = doc.data()!;
         DateTime now = DateTime.now();
-        DateTime lastDate = data['lastSessionDate'] != null ? (data['lastSessionDate'] as Timestamp).toDate() : DateTime.now().subtract(const Duration(days: 1));
-        bool isNewDay = lastDate.day != now.day || lastDate.month != now.month || lastDate.year != now.year;
-        int limit = data['dailyLimit'] ?? 30;
-        String name = data['name'] ?? "Child";
-        int currentStreak = data['streak'] ?? 0;
+        DateTime lastDate = data['lastSessionDate'] != null 
+            ? (data['lastSessionDate'] as Timestamp).toDate() 
+            : DateTime.now().subtract(const Duration(days: 8));
 
-        if (isNewDay) {
-          DateTime yesterday = DateTime(now.year, now.month, now.day - 1);
-          bool wasActiveYesterday = lastDate.year == yesterday.year && lastDate.month == yesterday.month && lastDate.day == yesterday.day;
-          int newStreak = wasActiveYesterday ? currentStreak + 1 : 1;
-          await docRef.update({'minutesSpentToday': 1, 'lastSessionDate': Timestamp.fromDate(now), 'streak': newStreak});
-        } else {
-          await docRef.update({'minutesSpentToday': FieldValue.increment(1), 'lastSessionDate': Timestamp.fromDate(now)});
-          final freshDoc = await docRef.get();
-          int newMins = freshDoc.data()?['minutesSpentToday'] ?? 0;
-          if (newMins == (limit * 0.8).toInt()) {
-            NotificationService().notifyUsageLimit(name, newMins, limit);
-            _logNotification(uid, "Almost there! ⏳", "$name used 80% of time.", "usage");
-          } else if (newMins >= limit) {
-            NotificationService().notifyUsageLimit(name, newMins, limit);
-            _logNotification(uid, "Time Up! 🛑", "$name reached the daily limit.", "usage");
-          }
+        // 1. Get current day index (Monday = 0, Sunday = 6)
+        int dayIndex = now.weekday - 1; 
+
+        List<int> history = List<int>.from(data['usageHistory'] ?? [0, 0, 0, 0, 0, 0, 0]);
+
+        // 2. Check if we entered a new calendar week
+        // We use the ISO week number to detect if Monday has passed
+        if (_isNewWeek(now, lastDate)) {
+           history = [0, 0, 0, 0, 0, 0, 0]; // Reset for new week
+        }
+
+        // 3. Update current day's progress
+        int todayMins = (data['minutesSpentToday'] ?? 0);
+        bool isNewDay = now.day != lastDate.day || now.month != lastDate.month;
+        
+        int newDailyTotal = isNewDay ? 1 : todayMins + 1;
+        history[dayIndex] = newDailyTotal; 
+
+        await docRef.update({
+          'minutesSpentToday': newDailyTotal,
+          'usageHistory': history,
+          'lastSessionDate': Timestamp.fromDate(now),
+        });
+
+        // Notifications for limit
+        int limit = data['dailyLimit'] ?? 30;
+        if (newDailyTotal == (limit * 0.8).toInt()) {
+          NotificationService().notifyUsageLimit(data['name'] ?? "Child", newDailyTotal, limit);
         }
       }
     } catch (e) { debugPrint("Heartbeat Error: $e"); }
+  }
+
+  // Helper to detect week change
+  bool _isNewWeek(DateTime now, DateTime last) {
+    // If more than 7 days passed, it's definitely a new week
+    if (now.difference(last).inDays >= 7) return true;
+    // If today is Monday and the last play wasn't today, it's a new week
+    if (now.weekday == 1 && (now.day != last.day)) return true;
+    // If current weekday is less than last weekday (e.g., last was Sunday[7], today is Tuesday[2])
+    if (now.weekday < last.weekday) return true;
+    return false;
   }
 
   // ==========================================
@@ -225,7 +237,6 @@ class DatabaseService {
       int totalChildren = docs.length;
       int activeToday = 0;
       double totalStars = 0;
-      int totalMasteries = 0;
       double totalUsageMinutes = 0;
       List<Map<String, dynamic>> childPerformance = [];
       DateTime today = DateTime.now();
@@ -241,34 +252,16 @@ class DatabaseService {
             activeToday++;
           }
         }
-        
-        Map<String, double> masteryScores = {};
-        if (data['masteryScores'] != null) {
-          (data['masteryScores'] as Map<String, dynamic>).forEach((key, value) {
-            masteryScores[key] = (value as num).toDouble();
-          });
-        }
-        
-        int childMasteries = masteryScores.values.where((score) => score >= 0.8).length;
-        totalMasteries += childMasteries;
-        
-        childPerformance.add({
-          'name': data['name'] ?? 'Unknown',
-          'averageScore': masteryScores.isNotEmpty ? masteryScores.values.reduce((a, b) => a + b) / masteryScores.length : 0,
-        });
+        childPerformance.add({'name': data['name'] ?? 'Unknown'});
       }
-      
-      childPerformance.sort((a, b) => (b['averageScore'] as double).compareTo(a['averageScore'] as double));
 
       return {
         'totalChildren': totalChildren,
         'activeToday': activeToday,
         'engagementRate': totalChildren > 0 ? (activeToday / totalChildren) * 100 : 0,
         'totalStars': totalStars.toInt(),
-        'totalMasteries': totalMasteries,
         'avgUsagePerChild': totalChildren > 0 ? (totalUsageMinutes / totalChildren).toInt() : 0,
         'topPerformers': childPerformance.take(5).toList(),
-        'avgScore': totalChildren > 0 ? (totalStars / totalChildren).toStringAsFixed(1) : "0",
       };
     } catch (e) { return {}; }
   }
